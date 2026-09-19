@@ -1,0 +1,12 @@
+build/
+*.o
+*.elf
+.env
+node_modules/
+__pycache__/
+docs/agents/PROCESS.md
+docs/agents/HANDOFF.md
+*.pyc
+.venv/
+dist/
+*.egg-info/
