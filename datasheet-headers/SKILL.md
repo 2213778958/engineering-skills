@@ -16,7 +16,7 @@ Do not write drivers, do not open issues, do not paste PDF body into this conver
 
 Delegate: read and run `engineering-routing` (role `datasheet extract`). Repo `MODELS.md` target wins if present; ignore a `dispatch` link. Do not read `openhands-sessions`, do not copy POST, do not call Task directly.
 
-Missing `<module>` or PDF path → `grilling` (decision) + find `.pdf` files in the repo. Do not ask the user to list registers.
+Missing `<module>` or PDF path → read and run `grilling` (decision) + find `.pdf` files in the repo. Do not ask the user to list registers.
 
 [references/headers.md](references/headers.md)
 
