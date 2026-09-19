@@ -28,3 +28,4 @@ Break a rule → **stop or fail**.
 5. When creating, merging, or removing ticket trees, read and run [references/worktree.md](references/worktree.md).
 
 Whenever a department staffs an employee, read and run `engineering-routing`; do not directly wire or invoke lower-level skills. For research or datasheet work on a delivery ticket, staff `datasheet extract` by reading and running `engineering-routing`; that employee reads and runs `engineering-research`, which checks repository materials before the web.
+Matt primitives: [references/matt.md](references/matt.md). `read and run` the named skill. Do not run Matt's main flow.
