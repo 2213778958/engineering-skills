@@ -23,7 +23,11 @@ description: >-
 - Do not implement, do not call Task, do not `git clone`, do not 分发 departments, do not staff employees, do not open PRs. Injecting `AGENTS.md` / `CONTEXT.md` / ADRs / formatters is not implementation. Plan close-out may run sessions **list** to fill `MODELS.md`; do not POST a conversation.
 - `gh` / `git commit` only on the **landing repo**, never the origin repo.
 - Do not write process / planning / department / current ticket into `AGENTS.md`. Coding conventions, glossary, ADRs: [repo-docs.md](references/repo-docs.md). Existing files → follow the repo; do not overwrite.
-- Unconfirmed decisions → `grilling`. Unconfirmed → no issues, no graphs, no code.
+- Unconfirmed decisions → read and run `grilling`. Unconfirmed → no issues, no graphs, no code.
+- Writing or editing `CONTEXT.md` / `docs/adr/` → read and run `domain-modeling`.
+- Injecting `AGENTS.md` → read and run `writing-for-agents`.
+- Module cuts, layers, or seams unconfirmed → read and run `codebase-design`.
+- Do not run `to-spec` `to-tickets` `triage` `wayfinder` `setup-matt-pocock-skills` `grill-me` `grill-with-docs` `ask-matt` `improve-codebase-architecture`.
 - Windows: `Path.write_text(..., encoding="utf-8")` → `gh … --body-file`. CJK only in files. Do not print tokens.
 - Spec markers: `engineering:contains` `engineering:uses` (working / to-be). As-is: `engineering:contains-asis` `engineering:uses-asis`. Seeing `github-engineering:*` → replace with the new markers.
 
