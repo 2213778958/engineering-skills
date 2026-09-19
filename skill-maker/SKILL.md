@@ -31,7 +31,8 @@ Read this when creating or editing a skill. Write operations, not reasons.
 - Do not write: reasons, root causes, why, background, comparisons, history, bug stories.
 - Callers are **this conversation**. Keep API field names unchanged (e.g. `parent_conversation_id`).
 - User-supplied sentences go in verbatim. Do not rewrite them.
-- Missing decision → `grilling`. Missing fact → look it up. Do not paste manuals into the entry skill.
+- Missing decision → read and run `grilling`. Missing fact → look it up. Do not paste manuals into the entry skill.
+- Writing or editing a skill or `AGENTS.md` → read and run `writing-for-agents`. skill-maker owns steps; that skill owns pointers and hierarchy.
 - Repo already has engineering conventions → follow them. Else write defaults and mark them as defaults.
 - Other skills' APIs → write "read and run `<skill>`". Do not copy them.
 - Spawn / subagent **mechanism** → read and run `openhands-sessions`. Do not copy POST. Do not call Task directly. Delegate: wait until the receipt is in this conversation. Background Task → **fail**. Do not finish without the receipt. Department hop done → sessions **notify** (`engineering:report` to the parent). Planning must not notify.
