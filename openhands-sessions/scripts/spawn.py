@@ -161,14 +161,79 @@ def updated_key(item: dict[str, Any]) -> str:
 
 
 REPORT_PREFIX = "engineering:report"
+DEPARTMENTS = {"delivery", "acceptance", "arbitration", "human", "planning"}
+TERMINAL_STATES = {"finished", "stopped", "error"}
+RESUMABLE_STATES = TERMINAL_STATES | {"paused", "idle", "awaiting_user"}
 
 
-def notify_parent(parent_id: str, text: str) -> object:
+def report_fields(text: str) -> dict[str, str]:
+    """Parse the report envelope without interpreting receipt details.
+
+    Args:
+        text: Report body beginning with ``engineering:report``.
+
+    Returns:
+        Lowercase envelope keys and stripped values.
+    """
+    fields: dict[str, str] = {}
+    for line in text.splitlines()[1:]:
+        key, separator, value = line.partition(":")
+        if separator:
+            normalized = key.strip().lower()
+            if normalized in fields:
+                raise SystemExit(f"notify report duplicate field: {normalized}")
+            fields[normalized] = value.strip()
+    return fields
+
+
+def validate_report(text: str, child: dict, allow_legacy: bool = False) -> str:
+    """Validate report identity against its child conversation.
+
+    Args:
+        text: Complete engineering report.
+        child: Current child conversation payload.
+        allow_legacy: Permit an older report with no correlation envelope.
+
+    Returns:
+        ``exact`` or ``legacy-unverified`` correlation status.
+    """
+    fields = report_fields(text)
+    required = {"dispatch-id", "child-conversation-id", "department", "ticket"}
+    present = required.intersection(fields)
+    if present != required:
+        if not present and allow_legacy:
+            return "legacy-unverified"
+        missing = ", ".join(sorted(required - present))
+        raise SystemExit(f"report identity missing: {missing}")
+    tags = child.get("tags") if isinstance(child.get("tags"), dict) else {}
+    expected = {
+        "dispatch-id": tags.get("dispatch_id"),
+        "child-conversation-id": str(child.get("id") or ""),
+        "department": tags.get("department"),
+        "ticket": tags.get("ticket"),
+    }
+    mismatches = [key for key in sorted(required) if str(fields[key]) != str(expected[key])]
+    if mismatches:
+        raise SystemExit(f"report identity mismatch: {', '.join(mismatches)}")
+    return "exact"
+
+
+def post_message(cid: str, text: str, run: bool) -> object:
+    """Append a user message to an existing conversation.
+
+    Args:
+        cid: Existing Canvas conversation id.
+        text: User message text.
+        run: Whether the message API should request execution.
+
+    Returns:
+        API response payload.
+    """
     payloads: list[dict[str, Any]] = [
         {
             "role": "user",
             "content": [{"type": "text", "text": text}],
-            "run": True,
+            "run": run,
         },
         {
             "kind": "MessageEvent",
@@ -177,19 +242,58 @@ def notify_parent(parent_id: str, text: str) -> object:
                 "role": "user",
                 "content": [{"type": "text", "text": text}],
             },
-            "run": True,
+            "run": run,
         },
     ]
     last: SystemExit | None = None
     for body in payloads:
         try:
-            return api("POST", f"/api/conversations/{parent_id}/events", body)
+            return api("POST", f"/api/conversations/{cid}/events", body)
         except SystemExit as exc:
             last = exc
             err = str(exc)
             if "HTTP 400" not in err and "HTTP 422" not in err:
                 raise
-    raise last or SystemExit("notify POST /events failed")
+    raise last or SystemExit("POST existing-conversation message failed")
+
+
+def validate_resume(parent: dict, child: dict, parent_id: str, child_id: str) -> str:
+    """Validate that planning may safely resume this department child.
+
+    Args:
+        parent: Current planning conversation payload.
+        child: Requested child conversation payload.
+        parent_id: Current planning conversation id.
+        child_id: Requested child conversation id.
+
+    Returns:
+        Child status when the relationship is safe.
+    """
+    if child_id == parent_id:
+        raise SystemExit("resume invalid direction: target is current conversation")
+    if str(parent.get("id") or "") != parent_id:
+        raise SystemExit("resume current conversation identity mismatch")
+    if str(child.get("id") or "") != child_id:
+        raise SystemExit("resume target identity mismatch")
+    if parent.get("parent_conversation_id"):
+        raise SystemExit("resume invalid direction: current conversation is not planning")
+    if str(child.get("parent_conversation_id") or "") != parent_id:
+        raise SystemExit("resume target is not a direct child of current planning conversation")
+    if working_dir_of(child) != working_dir_of(parent):
+        raise SystemExit("resume workspace mismatch")
+    tags = child.get("tags") if isinstance(child.get("tags"), dict) else {}
+    if tags.get("clientsource") != "agentcanvas":
+        raise SystemExit("resume target missing clientsource=agentcanvas")
+    if tags.get("layer") != "department" or tags.get("department") not in DEPARTMENTS - {"planning"}:
+        raise SystemExit("resume target is not a dispatched department child")
+    if not tags.get("dispatch_id") or not tags.get("ticket"):
+        raise SystemExit("resume target missing dispatch identity")
+    state = status_of(child)
+    if state == "running":
+        raise SystemExit("resume unsafe state: running")
+    if state not in RESUMABLE_STATES:
+        raise SystemExit(f"resume unsafe state: {state}")
+    return state
 
 
 def maybe_run(cid: str) -> None:
@@ -264,10 +368,17 @@ def ensure_child(cid: str, want_tags: dict[str, str]) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=("open", "dispatch", "this", "notify"), required=True)
+    parser.add_argument(
+        "--mode", choices=("open", "dispatch", "this", "notify", "resume"), required=True
+    )
     parser.add_argument("--this-id", default="", help="Canvas GET id. Not CURSOR_CONVERSATION_ID. Omit to resolve.")
     parser.add_argument("--profile-id", default="")
     parser.add_argument("--prompt-file", default="")
+    parser.add_argument("--target-id", default="")
+    parser.add_argument("--department", choices=sorted(DEPARTMENTS - {"planning"}))
+    parser.add_argument("--ticket", default="")
+    parser.add_argument("--dispatch-id", default="")
+    parser.add_argument("--allow-legacy-report", action="store_true")
     parser.add_argument("--max-iterations", type=int, default=500)
     parser.add_argument("--poll-sec", type=int, default=0)
     parser.add_argument("--timeout-sec", type=int, default=5400)
@@ -293,6 +404,36 @@ def main() -> None:
         )
         return
 
+    if args.mode == "resume":
+        if not args.target_id or not args.prompt_file:
+            raise SystemExit("resume needs --target-id and --prompt-file")
+        child = get_conversation(args.target_id)
+        if child is None:
+            raise SystemExit("resume target GET failed")
+        prior_state = validate_resume(parent, child, this_id, args.target_id)
+        text = Path(args.prompt_file).read_text(encoding="utf-8")
+        posted = post_message(args.target_id, text, run=False)
+        api("POST", f"/api/conversations/{args.target_id}/run", {})
+        print(
+            json.dumps(
+                {
+                    "mode": "resume",
+                    "parent_id": this_id,
+                    "id": args.target_id,
+                    "dispatch_id": child["tags"]["dispatch_id"],
+                    "department": child["tags"]["department"],
+                    "ticket": child["tags"]["ticket"],
+                    "prior_status": prior_state,
+                    "url": f"{UI}/conversations/{args.target_id}",
+                    "posted": posted if isinstance(posted, dict) else True,
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
+            flush=True,
+        )
+        return
+
     if args.mode == "notify":
         if not args.prompt_file:
             raise SystemExit("notify needs --prompt-file")
@@ -302,22 +443,29 @@ def main() -> None:
         text = Path(args.prompt_file).read_text(encoding="utf-8")
         if not text.lstrip().startswith(REPORT_PREFIX):
             raise SystemExit("notify prompt must start with engineering:report")
+        correlation = validate_report(text, parent, args.allow_legacy_report)
         target_id = str(parent_id)
         target = get_conversation(target_id)
         if target is None:
             raise SystemExit("notify parent GET failed")
-        posted = notify_parent(target_id, text)
-        if status_of(target) in {"finished", "stopped", "error"}:
+        posted = post_message(target_id, text, run=True)
+        if status_of(target) in TERMINAL_STATES:
             maybe_run(target_id)
         checked = get_conversation(target_id) or target
+        child_tags = parent.get("tags") if isinstance(parent.get("tags"), dict) else {}
         print(
             json.dumps(
                 {
                     "mode": "notify",
                     "this_id": this_id,
+                    "child_conversation_id": parent.get("id") or this_id,
                     "parent_id": checked.get("id") or target_id,
+                    "dispatch_id": child_tags.get("dispatch_id"),
+                    "department": child_tags.get("department"),
+                    "ticket": child_tags.get("ticket"),
                     "url": f"{UI}/conversations/{target_id}",
                     "parent_status": status_of(checked),
+                    "correlation": correlation,
                     "posted": posted if isinstance(posted, dict) else True,
                 },
                 ensure_ascii=False,
@@ -339,6 +487,19 @@ def main() -> None:
 
     child_id = str(uuid.uuid4())
     tags = canvas_tags(parent)
+    dispatch_id = ""
+    if args.mode == "dispatch" and (args.department or args.ticket or args.dispatch_id):
+        if not args.department or not args.ticket:
+            raise SystemExit("department dispatch needs --department and --ticket")
+        dispatch_id = args.dispatch_id or str(uuid.uuid4())
+        tags.update(
+            {
+                "layer": "department",
+                "department": args.department,
+                "ticket": args.ticket,
+                "dispatch_id": dispatch_id,
+            }
+        )
     body: dict = {
         "conversation_id": child_id,
         "agent_profile_id": args.profile_id,
@@ -371,6 +532,10 @@ def main() -> None:
         "conversation_id": checked.get("conversation_id") or checked.get("id") or cid,
         "url": f"{UI}/conversations/{cid}",
         "mode": args.mode,
+        "dispatch_id": dispatch_id or None,
+        "child_conversation_id": checked.get("id") or cid,
+        "department": args.department,
+        "ticket": args.ticket or None,
         "working_dir": got,
         "tags": checked.get("tags") if isinstance(checked.get("tags"), dict) else {},
         "parent_conversation_id": checked.get("parent_conversation_id"),
