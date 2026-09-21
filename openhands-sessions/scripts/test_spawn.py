@@ -167,6 +167,44 @@ class GitHubBindingTests(unittest.TestCase):
             ), self.assertRaisesRegex(SystemExit, "invalid"):
                 spawn.search_items()
 
+    def test_search_items_reads_all_pages(self) -> None:
+        pages = [
+            {"items": [{"id": "first"}], "has_more": True},
+            {"items": [{"id": "second"}], "has_more": False},
+        ]
+        with patch.object(spawn, "api", side_effect=pages) as api:
+            self.assertEqual(
+                [item["id"] for item in spawn.search_items()], ["first", "second"]
+            )
+        self.assertIn("offset=1", api.call_args_list[1].args[1])
+
+    def test_search_items_follows_cursor_pages(self) -> None:
+        with patch.object(
+            spawn,
+            "api",
+            side_effect=[
+                {"items": [{"id": "first"}], "next_cursor": "next"},
+                {"items": [{"id": "second"}]},
+            ],
+        ) as api:
+            self.assertEqual(
+                [item["id"] for item in spawn.search_items()], ["first", "second"]
+            )
+        self.assertIn("cursor=next", api.call_args_list[1].args[1])
+
+    def test_search_items_rejects_repeated_cursor(self) -> None:
+        with patch.object(
+            spawn, "api", return_value={"items": [], "next_cursor": "same"}
+        ), self.assertRaisesRegex(SystemExit, "next cursor"):
+            spawn.search_items()
+
+    def test_dispatch_child_id_is_stable_reservation_key(self) -> None:
+        first = spawn.dispatch_child_id("parent", "delivery")
+        self.assertEqual(first, spawn.dispatch_child_id("parent", "delivery"))
+        self.assertNotEqual(first, spawn.dispatch_child_id("parent", "acceptance"))
+        self.assertRegex(first, r"^[0-9a-f-]{36}$")
+
+
     def test_skill_documents_soft_timeout_and_duplicate_contract(self) -> None:
         skill = (MODULE_PATH.parent.parent / "SKILL.md").read_text(encoding="utf-8")
         for text in (

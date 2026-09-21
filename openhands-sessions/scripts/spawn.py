@@ -265,20 +265,68 @@ def status_of(payload: object) -> str:
 
 
 def search_items(status: str | None = None) -> list[dict[str, Any]]:
-    params: dict[str, str] = {"limit": "100"}
-    if status:
-        params["status"] = status
-    payload = api("GET", f"/api/conversations/search?{urlencode(params)}")
-    if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
-        raise SystemExit("conversation search returned an invalid payload")
-    items = payload["items"]
-    if any(not isinstance(item, dict) for item in items):
-        raise SystemExit("conversation search returned an invalid item")
-    return items
+    """Read every page of conversations matching an optional status.
+
+    Args:
+        status: Optional server-side execution status filter.
+
+    Returns:
+        All conversation records returned by the paginated search.
+    """
+    limit = 100
+    offset = 0
+    cursor: str | None = None
+    items: list[dict[str, Any]] = []
+    while True:
+        params: dict[str, str] = {"limit": str(limit), "offset": str(offset)}
+        if status:
+            params["status"] = status
+        if cursor:
+            params["cursor"] = cursor
+        payload = api("GET", f"/api/conversations/search?{urlencode(params)}")
+        if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
+            raise SystemExit("conversation search returned an invalid payload")
+        page = payload["items"]
+        if any(not isinstance(item, dict) for item in page):
+            raise SystemExit("conversation search returned an invalid item")
+        items.extend(page)
+
+        next_cursor = payload.get("next_cursor")
+        if next_cursor is not None:
+            if not isinstance(next_cursor, str) or not next_cursor or next_cursor == cursor:
+                raise SystemExit("conversation search returned an invalid next cursor")
+            cursor = next_cursor
+            continue
+        has_more = payload.get("has_more") is True
+        total = payload.get("total")
+        if isinstance(total, int):
+            has_more = has_more or len(items) < total
+        if not has_more and len(page) < limit:
+            return items
+        if not page:
+            return items
+        offset += len(page)
 
 
 def search_running() -> list[dict[str, Any]]:
     return search_items("running")
+
+
+def dispatch_child_id(parent_id: str, department: str) -> str:
+    """Return the server uniqueness key for a non-forced dispatch reservation.
+
+    Args:
+        parent_id: Planning conversation that owns the dispatch.
+        department: Authorized destination department.
+
+    Returns:
+        Stable UUID shared by concurrent retries of this dispatch.
+    """
+    return str(
+        uuid.uuid5(
+            uuid.NAMESPACE_URL, f"agentcanvas-dispatch:{parent_id}:{department}"
+        )
+    )
 
 
 def refuse_duplicate_dispatch(
@@ -554,12 +602,14 @@ def main() -> None:
         secrets = github_binding(args.github_token_secret, key)
         prompt = bound_department_prompt(prompt)
 
-    child_id = str(uuid.uuid4())
     tags = canvas_tags(parent)
+    child_id = str(uuid.uuid4())
     if args.department:
         tags["department"] = args.department
         if args.mode == "dispatch":
             refuse_duplicate_dispatch(this_id, tags, args.force)
+            if not args.force:
+                child_id = dispatch_child_id(this_id, args.department)
     if wants_binding:
         tags["githubbinding"] = "gh-token-bound"
     body = conversation_body(
