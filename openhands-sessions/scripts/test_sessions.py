@@ -1,6 +1,9 @@
 ﻿from __future__ import annotations
 
+import contextlib
 import importlib.util
+import io
+import json
 import os
 import subprocess
 import sys
@@ -119,9 +122,14 @@ class IdentityTests(unittest.TestCase):
             "child-conversation-id": "child-1",
             "department": "delivery",
             "ticket": "#24",
+            "hop": "done",
+            "receipts": "delivery implement=pass",
+            "suggested next": "分发 acceptance #24",
         }
         fields.update(overrides)
-        return "engineering:report\n" + "\n".join(f"{key}: {value}" for key, value in fields.items())
+        return "engineering:report\n" + "\n".join(
+            f"{key}: {value}" for key, value in fields.items()
+        )
 
     def test_exact_report_correlation(self) -> None:
         self.assertEqual(spawn.validate_report(self.report(), self.child()), "exact")
@@ -129,14 +137,30 @@ class IdentityTests(unittest.TestCase):
     def test_mismatch_and_partial_legacy_are_rejected(self) -> None:
         with self.assertRaisesRegex(SystemExit, "identity mismatch"):
             spawn.validate_report(self.report(ticket="#23"), self.child())
+        partial = (
+            "engineering:report\n"
+            "department: delivery\n"
+            "hop: done\n"
+            "receipts: delivery implement=pass\n"
+            "suggested next: stop"
+        )
         with self.assertRaisesRegex(SystemExit, "identity missing"):
-            spawn.validate_report("engineering:report\ndepartment: delivery", self.child(), True)
+            spawn.validate_report(partial, self.child(), True)
 
-    def test_legacy_requires_explicit_compatibility(self) -> None:
-        legacy = "engineering:report\nhop: done"
+    def test_legacy_requires_complete_explicit_compatibility(self) -> None:
+        legacy = (
+            "engineering:report\n"
+            "hop: done\n"
+            "receipts: delivery implement=pass\n"
+            "suggested next: stop"
+        )
         with self.assertRaisesRegex(SystemExit, "identity missing"):
             spawn.validate_report(legacy, self.child())
-        self.assertEqual(spawn.validate_report(legacy, self.child(), True), "legacy-unverified")
+        self.assertEqual(
+            spawn.validate_report(legacy, self.child(), True), "legacy-unverified"
+        )
+        with self.assertRaisesRegex(SystemExit, "report envelope missing"):
+            spawn.validate_report("engineering:report\nhop: done", self.child(), True)
 
     def test_resume_accepts_direct_department_child(self) -> None:
         parent = {"id": "parent-1", "workspace": {"working_dir": "C:/repo"}}
@@ -168,6 +192,249 @@ class IdentityTests(unittest.TestCase):
         }
         with self.assertRaisesRegex(SystemExit, "invalid direction"):
             spawn.validate_resume(parent, self.child(), "parent-1", "child-1")
+
+
+class CanvasApi:
+    def __init__(self) -> None:
+        self.calls = []
+        self.conversations = {
+            "parent-1": {
+                "id": "parent-1",
+                "execution_status": "finished",
+                "workspace": {"working_dir": "C:/repo"},
+                "tags": {"clientsource": "agentcanvas"},
+            }
+        }
+        self.dispatch_tag_override = {}
+
+    def __call__(self, method, path, body=None, timeout=60):
+        self.calls.append((method, path, body, timeout))
+        if method == "GET" and path.startswith("/api/conversations/"):
+            conversation_id = path.rsplit("/", 1)[-1]
+            payload = self.conversations.get(conversation_id)
+            if payload is None:
+                raise SystemExit(f"HTTP 404 GET {path}: not found")
+            return json.loads(json.dumps(payload))
+        if method == "POST" and path == "/api/conversations":
+            assert body is not None
+            conversation_id = body["conversation_id"]
+            tags = {**body["tags"], **self.dispatch_tag_override}
+            self.conversations[conversation_id] = {
+                "id": conversation_id,
+                "conversation_id": conversation_id,
+                "parent_conversation_id": body.get("parent_conversation_id"),
+                "execution_status": "running",
+                "workspace": body["workspace"],
+                "tags": tags,
+            }
+            return {"id": conversation_id}
+        if method == "POST" and path.endswith("/events"):
+            return {"accepted": True}
+        if method == "POST" and path.endswith("/run"):
+            return {"started": True}
+        raise AssertionError(f"unexpected API call: {method} {path} {body}")
+
+
+class MainApiPathTests(unittest.TestCase):
+    def child(self, status="finished", **overrides):
+        child = {
+            "id": "child-1",
+            "parent_conversation_id": "parent-1",
+            "execution_status": status,
+            "workspace": {"working_dir": "C:/repo"},
+            "tags": {
+                "clientsource": "agentcanvas",
+                "layer": "department",
+                "dispatch_id": "dispatch-1",
+                "department": "delivery",
+                "ticket": "#24",
+            },
+        }
+        child.update(overrides)
+        return child
+
+    def report(self, include_identity=True, ticket="#24"):
+        lines = ["engineering:report"]
+        if include_identity:
+            lines.extend(
+                [
+                    "dispatch-id: dispatch-1",
+                    "child-conversation-id: child-1",
+                    "department: delivery",
+                    f"ticket: {ticket}",
+                ]
+            )
+        lines.extend(
+            [
+                "hop: done",
+                "receipts: delivery implement=pass",
+                "suggested next: 分发 acceptance #24",
+            ]
+        )
+        return "\n".join(lines)
+
+    def run_main(self, api, args, prompt):
+        original_api = spawn.api
+        original_argv = sys.argv
+        output = io.StringIO()
+        try:
+            spawn.api = api
+            with tempfile.TemporaryDirectory() as raw:
+                prompt_path = Path(raw) / "prompt.txt"
+                prompt_path.write_text(prompt, encoding="utf-8")
+                sys.argv = ["spawn.py", *args, "--prompt-file", str(prompt_path)]
+                with contextlib.redirect_stdout(output):
+                    spawn.main()
+        finally:
+            spawn.api = original_api
+            sys.argv = original_argv
+        return json.loads(output.getvalue())
+
+    def test_dispatch_verifies_and_returns_persisted_correlation(self) -> None:
+        api = CanvasApi()
+        receipt = self.run_main(
+            api,
+            [
+                "--mode",
+                "dispatch",
+                "--this-id",
+                "parent-1",
+                "--profile-id",
+                "profile-1",
+                "--department",
+                "delivery",
+                "--ticket",
+                "#24",
+                "--dispatch-id",
+                "dispatch-1",
+            ],
+            "deliver issue 24",
+        )
+        child = api.conversations[receipt["child_conversation_id"]]
+        self.assertEqual(receipt["dispatch_id"], "dispatch-1")
+        self.assertEqual(receipt["department"], "delivery")
+        self.assertEqual(receipt["ticket"], "#24")
+        self.assertEqual(child["parent_conversation_id"], "parent-1")
+        self.assertEqual(child["tags"]["dispatch_id"], "dispatch-1")
+
+    def test_dispatch_rejects_unpersisted_correlation(self) -> None:
+        api = CanvasApi()
+        api.dispatch_tag_override = {"ticket": "#23"}
+        with self.assertRaisesRegex(
+            SystemExit, "persisted dispatch metadata mismatch: ticket"
+        ):
+            self.run_main(
+                api,
+                [
+                    "--mode",
+                    "dispatch",
+                    "--this-id",
+                    "parent-1",
+                    "--profile-id",
+                    "profile-1",
+                    "--department",
+                    "delivery",
+                    "--ticket",
+                    "#24",
+                    "--dispatch-id",
+                    "dispatch-1",
+                ],
+                "deliver issue 24",
+            )
+
+    def test_notify_validates_exact_and_legacy_correlation(self) -> None:
+        api = CanvasApi()
+        api.conversations["child-1"] = self.child()
+        exact = self.run_main(
+            api,
+            ["--mode", "notify", "--this-id", "child-1"],
+            self.report(),
+        )
+        self.assertEqual(exact["correlation"], "exact")
+        self.assertTrue(exact["completion_eligible"])
+
+        legacy = self.run_main(
+            api,
+            [
+                "--mode",
+                "notify",
+                "--this-id",
+                "child-1",
+                "--allow-legacy-report",
+            ],
+            self.report(include_identity=False),
+        )
+        self.assertEqual(legacy["correlation"], "legacy-unverified")
+        self.assertFalse(legacy["completion_eligible"])
+        legacy_event = [call for call in api.calls if call[1].endswith("/events")][-1]
+        posted_text = legacy_event[2]["content"][0]["text"]
+        self.assertIn("correlation: legacy-unverified", posted_text)
+        self.assertIn("completion-eligible: false", posted_text)
+
+    def test_notify_rejects_stale_and_incomplete_reports_before_post(self) -> None:
+        for report in (
+            self.report(ticket="#23"),
+            "engineering:report\nhop: done\nreceipts: delivery implement=pass",
+        ):
+            api = CanvasApi()
+            api.conversations["child-1"] = self.child()
+            with self.subTest(report=report), self.assertRaises(SystemExit):
+                self.run_main(
+                    api,
+                    ["--mode", "notify", "--this-id", "child-1"],
+                    report,
+                )
+            event_calls = [call for call in api.calls if call[1].endswith("/events")]
+            self.assertEqual(event_calls, [])
+
+    def test_terminal_and_non_terminal_resume_use_distinct_api_paths(self) -> None:
+        cases = [
+            ("finished", False, True, "message-then-run"),
+            ("paused", True, False, "message-with-run"),
+        ]
+        for status, event_run, separate_run, behavior in cases:
+            api = CanvasApi()
+            api.conversations["child-1"] = self.child(status)
+            receipt = self.run_main(
+                api,
+                [
+                    "--mode",
+                    "resume",
+                    "--this-id",
+                    "parent-1",
+                    "--target-id",
+                    "child-1",
+                ],
+                "retry finalization only",
+            )
+            event = next(call for call in api.calls if call[1].endswith("/events"))
+            run_calls = [call for call in api.calls if call[1].endswith("/run")]
+            self.assertEqual(event[2]["run"], event_run)
+            self.assertEqual(bool(run_calls), separate_run)
+            self.assertEqual(receipt["resume_behavior"], behavior)
+
+    def test_resume_rejection_does_not_mutate_target(self) -> None:
+        api = CanvasApi()
+        api.conversations["child-1"] = self.child(parent_conversation_id="other")
+        with self.assertRaisesRegex(SystemExit, "not a direct child"):
+            self.run_main(
+                api,
+                [
+                    "--mode",
+                    "resume",
+                    "--this-id",
+                    "parent-1",
+                    "--target-id",
+                    "child-1",
+                ],
+                "retry finalization only",
+            )
+        mutation_calls = [
+            call
+            for call in api.calls
+            if call[0] == "POST" and call[1] != "/api/conversations"
+        ]
+        self.assertEqual(mutation_calls, [])
 
 
 if __name__ == "__main__":

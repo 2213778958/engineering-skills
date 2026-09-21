@@ -19,6 +19,6 @@ receipts: <role=pass|fail|none; ...>
 suggested next: 分发 <department> #<n> | 决策 | stop
 ```
 
-The script rejects missing, partial, stale, or mismatched correlation identity before posting. Reports from children created before correlation metadata may use `--allow-legacy-report`; this produces `correlation: legacy-unverified`, never exact completion. Never use compatibility for partial identity or a mismatch.
+The script requires non-empty identity, `hop`, `receipts`, and `suggested next`, and rejects missing, partial, stale, or mismatched correlation identity before posting. Reports from children created before correlation metadata may use `--allow-legacy-report` only when no identity fields are present and the operational envelope is complete; this produces `correlation: legacy-unverified` and `completion_eligible: false`, never completion. Never use compatibility for partial identity or a mismatch.
 
 Only another department manage window notifies. Parent missing, API failure, or validation failure means the hop was not reported.

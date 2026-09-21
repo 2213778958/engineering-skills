@@ -6,7 +6,7 @@ Planning may continue an existing direct department child without replacing its 
 python <this-skill>/scripts/spawn.py --mode resume --target-id <child Canvas id> --prompt-file <txt>
 ```
 
-Use only to recover a watch result of `terminal + missing-notify` or `terminal + finalization-failed`, or an explicitly paused/idle/awaiting-user department child. The wrapper posts through the existing-conversation events API and runs a terminal target through the run API.
+Use only to recover a watch result of `terminal + missing-notify` or `terminal + finalization-failed`, or an explicitly paused/idle/awaiting-user department child. For a terminal target, the wrapper appends the message with `run: false` and then calls the run API (`message-then-run`). For a safe non-terminal target, it appends the message with `run: true` and does not issue a second run request (`message-with-run`).
 
 Validation requires all of these:
 

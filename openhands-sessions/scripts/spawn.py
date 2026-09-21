@@ -162,8 +162,17 @@ def updated_key(item: dict[str, Any]) -> str:
 
 REPORT_PREFIX = "engineering:report"
 DEPARTMENTS = {"delivery", "acceptance", "arbitration", "human", "planning"}
+REPORT_HOPS = {
+    "done",
+    "send-back",
+    "need-arbitration",
+    "need-human",
+    "blocked",
+    "wait-merge",
+}
 TERMINAL_STATES = {"finished", "stopped", "error"}
-RESUMABLE_STATES = TERMINAL_STATES | {"paused", "idle", "awaiting_user"}
+NON_TERMINAL_RESUMABLE_STATES = {"paused", "idle", "awaiting_user"}
+RESUMABLE_STATES = TERMINAL_STATES | NON_TERMINAL_RESUMABLE_STATES
 
 
 def report_fields(text: str) -> dict[str, str]:
@@ -187,24 +196,37 @@ def report_fields(text: str) -> dict[str, str]:
 
 
 def validate_report(text: str, child: dict, allow_legacy: bool = False) -> str:
-    """Validate report identity against its child conversation.
+    """Validate a complete report envelope against its child conversation.
 
     Args:
         text: Complete engineering report.
         child: Current child conversation payload.
-        allow_legacy: Permit an older report with no correlation envelope.
+        allow_legacy: Permit a complete older report with no correlation identity.
 
     Returns:
         ``exact`` or ``legacy-unverified`` correlation status.
     """
     fields = report_fields(text)
-    required = {"dispatch-id", "child-conversation-id", "department", "ticket"}
-    present = required.intersection(fields)
-    if present != required:
-        if not present and allow_legacy:
+    identity = {"dispatch-id", "child-conversation-id", "department", "ticket"}
+    operational = {"hop", "receipts", "suggested next"}
+    present_identity = identity.intersection(fields)
+    missing_operational = sorted(
+        key for key in operational if not fields.get(key, "").strip()
+    )
+    if missing_operational:
+        raise SystemExit(
+            f"report envelope missing: {', '.join(missing_operational)}"
+        )
+    if fields["hop"] not in REPORT_HOPS:
+        raise SystemExit(f"report hop invalid: {fields['hop']}")
+    if present_identity != identity:
+        if not present_identity and allow_legacy:
             return "legacy-unverified"
-        missing = ", ".join(sorted(required - present))
+        missing = ", ".join(sorted(identity - present_identity))
         raise SystemExit(f"report identity missing: {missing}")
+    empty_identity = sorted(key for key in identity if not fields[key].strip())
+    if empty_identity:
+        raise SystemExit(f"report identity empty: {', '.join(empty_identity)}")
     tags = child.get("tags") if isinstance(child.get("tags"), dict) else {}
     expected = {
         "dispatch-id": tags.get("dispatch_id"),
@@ -212,7 +234,9 @@ def validate_report(text: str, child: dict, allow_legacy: bool = False) -> str:
         "department": tags.get("department"),
         "ticket": tags.get("ticket"),
     }
-    mismatches = [key for key in sorted(required) if str(fields[key]) != str(expected[key])]
+    mismatches = [
+        key for key in sorted(identity) if str(fields[key]) != str(expected[key])
+    ]
     if mismatches:
         raise SystemExit(f"report identity mismatch: {', '.join(mismatches)}")
     return "exact"
@@ -366,6 +390,40 @@ def ensure_child(cid: str, want_tags: dict[str, str]) -> dict:
     return checked
 
 
+def validate_persisted_dispatch(
+    child: dict,
+    child_id: str,
+    parent_id: str,
+    dispatch_id: str,
+    department: str,
+    ticket: str,
+) -> None:
+    """Verify that a department dispatch persisted its correlation identity.
+
+    Args:
+        child: Persisted child payload returned by a follow-up GET.
+        child_id: Created child conversation id.
+        parent_id: Dispatching planning conversation id.
+        dispatch_id: Expected dispatch UUID.
+        department: Expected department tag.
+        ticket: Expected ticket tag.
+    """
+    tags = child.get("tags") if isinstance(child.get("tags"), dict) else {}
+    expected = {
+        "child conversation id": (child.get("id"), child_id),
+        "parent conversation id": (child.get("parent_conversation_id"), parent_id),
+        "dispatch id": (tags.get("dispatch_id"), dispatch_id),
+        "department": (tags.get("department"), department),
+        "ticket": (tags.get("ticket"), ticket),
+    }
+    mismatches = [
+        key for key, (actual, wanted) in expected.items() if str(actual or "") != wanted
+    ]
+    if mismatches:
+        details = ", ".join(mismatches)
+        raise SystemExit(f"persisted dispatch metadata mismatch: {details}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -412,8 +470,10 @@ def main() -> None:
             raise SystemExit("resume target GET failed")
         prior_state = validate_resume(parent, child, this_id, args.target_id)
         text = Path(args.prompt_file).read_text(encoding="utf-8")
-        posted = post_message(args.target_id, text, run=False)
-        api("POST", f"/api/conversations/{args.target_id}/run", {})
+        terminal = prior_state in TERMINAL_STATES
+        posted = post_message(args.target_id, text, run=not terminal)
+        if terminal:
+            api("POST", f"/api/conversations/{args.target_id}/run", {})
         print(
             json.dumps(
                 {
@@ -424,6 +484,9 @@ def main() -> None:
                     "department": child["tags"]["department"],
                     "ticket": child["tags"]["ticket"],
                     "prior_status": prior_state,
+                    "resume_behavior": (
+                        "message-then-run" if terminal else "message-with-run"
+                    ),
                     "url": f"{UI}/conversations/{args.target_id}",
                     "posted": posted if isinstance(posted, dict) else True,
                 },
@@ -444,6 +507,12 @@ def main() -> None:
         if not text.lstrip().startswith(REPORT_PREFIX):
             raise SystemExit("notify prompt must start with engineering:report")
         correlation = validate_report(text, parent, args.allow_legacy_report)
+        if correlation == "legacy-unverified":
+            text = (
+                f"{text.rstrip()}\n"
+                "correlation: legacy-unverified\n"
+                "completion-eligible: false\n"
+            )
         target_id = str(parent_id)
         target = get_conversation(target_id)
         if target is None:
@@ -466,6 +535,7 @@ def main() -> None:
                     "url": f"{UI}/conversations/{target_id}",
                     "parent_status": status_of(checked),
                     "correlation": correlation,
+                    "completion_eligible": correlation == "exact",
                     "posted": posted if isinstance(posted, dict) else True,
                 },
                 ensure_ascii=False,
@@ -526,6 +596,15 @@ def main() -> None:
     got = working_dir_of(checked)
     if got != wd:
         raise SystemExit(f"working_dir mismatch: got {got!r} want {wd!r}")
+    if dispatch_id:
+        validate_persisted_dispatch(
+            checked,
+            cid,
+            this_id,
+            dispatch_id,
+            str(args.department),
+            args.ticket,
+        )
 
     report = {
         "id": checked.get("id") or cid,
