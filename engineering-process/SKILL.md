@@ -93,17 +93,17 @@ Duties: templates.md **职责表**.
 
 **Enter `arbitration` only on these three paths. No other receipt may 分发 arbitration.**
 
-1. **Conflict:** implement `Result: pass` and review `Result: fail` (they disagree on the implementation).
-2. **Employee challenge:** implement or review receipt `Challenge:` is not `none` (`upstream #<n>` or `contract`).
+1. **Disputed review finding:** `partial` / `dispute` under templates.md **Review disposition**, or `dispute-repeated` from its `post-rework-disposition` state. Arbitrate only the disputed finding IDs selected by that flow.
+2. **Employee challenge:** implement or review explicitly challenges the contract or upstream (`Challenge: upstream #<n>` or `contract`).
 3. **User challenge:** the user challenges this ticket's implementation.
 
-**Verify is not a trigger.** Delivery/acceptance verify has no `Challenge` field. `verify:`/`accept:` fail → send implement back or isolate; do not 分发 3b. Command green with extra notes → write a ticket comment; delivery may still pass. If verify writes `Challenge` anyway → treat it as `Notes`; do not enter 3b.
+An ordinary implement `Result: pass` plus blocking review `Result: fail` is not arbitration; follow templates.md **Review disposition** first. Direct arbitration is only paths 2–3. **Verify is not a trigger.** Delivery/acceptance verify has no `Challenge` field. `verify:`/`accept:` fail → send implement back or isolate; do not 分发 3b. Command green with extra notes → write a ticket comment; delivery may still pass. If verify writes `Challenge` anyway → treat it as `Notes`; do not enter 3b.
 
 **Not arbitration:** verify=`fail` → send implement back. implement=`fail` and paths 2–3 did not fire → delivery failed.
 
 **Reproduce ≠ debug.** Arbitration may only reproduce.
 
-**Already judged:** delivery must not resubmit a rejected implementation unchanged. planning must not change the verdict.
+**Already judged:** delivery must not resubmit a rejected implementation unchanged or repeat the same-finding rework loop. planning must not change the verdict.
 
 ## PROCESS.md
 
@@ -231,9 +231,9 @@ Then templates.md **Stop** tables (After 决策 receipts).
 
 Current ticket body contains `engineering:pr` → stop; that is 3e.
 
-Need headers → `datasheet-headers` (inside this implement ticket; no separate extract ticket; role `datasheet extract`), then staff implement + review + verify (**delegate**) (roles `delivery implement` / `delivery review` / `delivery verify`). Wait until implement, review, and verify receipts are in this conversation. Receipts missing → do not push, do not close, do not finish. implement may add+commit only; no push. verify runs `verify:`. Manage must not edit product files. No open/merge PR. Do not close gate or acceptance tickets. Do not resubmit a rejected implementation unchanged. Do not spawn a child conversation.
+Need headers → `datasheet-headers` (inside this implement ticket; no separate extract ticket; role `datasheet extract`), then staff implement and review (**delegate**) (roles `delivery implement` / `delivery review`). Wait for each receipt before the next step. Staff `delivery verify` only after review passes. Receipts required by the chosen path must be in this conversation before push, close, or notify. implement may add+commit only; no push. verify runs `verify:`. Manage must not edit product files. No open/merge PR. Do not close gate or acceptance tickets. Do not resubmit a rejected implementation unchanged. Do not spawn a child conversation.
 
-implement / review receipt:
+implement receipt:
 
 ```
 Changed paths:
@@ -243,6 +243,8 @@ Result: pass | fail
 Failure:
 ```
 
+review pass receipt uses the same shape. A blocking review fail instead returns structured findings from templates.md **Review disposition**. Follow that flow in this delivery window with the original implement employee; do not notify between disposition, focused rework, and fresh review.
+
 verify receipt (no `Challenge`):
 
 ```
@@ -251,13 +253,13 @@ Notes: <none or observations>
 Failure:
 ```
 
-Command ran but did not cover this module, or assertions are vacuous → verify `fail` (send implement back). Command green; notes are about later tightness → `pass` plus `Notes`; department copies Notes to a ticket comment. Do not 分发 arbitration.
+Review pass with non-blocking notes remains pass; copy Notes to a ticket comment. Blocking review failure skips verify. After review passes, staff verify. Command ran but did not cover this module, or assertions are vacuous → verify `fail` (send implement back). Command green; notes are about later tightness → `pass` plus `Notes`; department copies Notes to a ticket comment. Do not 分发 arbitration.
 
-verify=`fail` (when a command exists), both implement and review `fail`, or implement=`fail` and paths 2–3 did not fire → do not push, do not close, send back to `ready-for-agent`. Tree `issue: none`. Notify (`hop: send-back`). Stop.
+verify=`fail` (when a command exists), implement=`fail` and paths 2–3 did not fire, or a blocking finding accepted on fresh review still fails → do not push, do not close, send back to `ready-for-agent`. Tree `issue: none`. Notify (`hop: send-back`). Stop.
 
 implement=`pass` and review=`pass` and (`verify: none` or pass) → **delivery manage** `git push -u origin HEAD` → **close this implement ticket**. Tree `issue: none`. Run `python <engineering-init>/scripts/render_graph.py --issue <spec> --write` (spec = `Part of #<n>` on this ticket). Script fail → **fail**. Notify (`hop: done`). Do not open a PR. Do not change gate-ticket edges. Stop.
 
-Conflict / `Challenge` not `none` / user challenge → do not push; write tree `template: arbitration`; keep `issue:`; notify (`hop: need-arbitration`). Do not run 3b in this window. Next planning 推进 **分发** arbitration (tree hop already set).
+A disposition with `Action: arbitration`, the same finding disputed after focused rework, an explicit contract/upstream challenge, or a user challenge → do not push; write tree `template: arbitration`; keep `issue:`; notify (`hop: need-arbitration`). Include only disputed finding IDs and preserve accepted fixes and prior valid receipts. Do not run 3b in this window. Next planning 推进 **分发** arbitration (tree hop already set).
 
 ### 3e. `acceptance` (department)
 

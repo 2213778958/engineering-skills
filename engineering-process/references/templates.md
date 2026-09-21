@@ -28,7 +28,7 @@
 - Before staffing, take the target from the `MODELS.md` employee cell (department × duty), then `engineering-routing`. Ignore a `dispatch` link on employee cells. Do not pick a subagent outside the catalog unless the user named one. Do not rewrite delegate to a child conversation. Wait until each employee receipt is in the department window. Background Task → **fail**. Launching Task is not hop finished.
 - 决策 technical work only by `planning` **implement**. From arbitration, apply the verdict; do not change it. Planning **manage** staffs that implement + review; does not run patch. Open/merge PR only by `acceptance` **manage**, and only if the ticket body has `engineering:pr`. Product-code edits only by the `delivery` implement **employee**. Heads merge / worktree git only by `acceptance` implement.
 - Arbitration: implement employee reproduces + opinion; review reviews the opinion; verify checks reproduction if a command exists. The verdict is written by the arbitration **department**. planning does not judge.
-- Enter arbitration only on the three paths in `SKILL.md` Key points. Delivery department reports those paths; planning **分发** arbitration. Delivery verify is not a trigger and has no `Challenge` field.
+- Enter arbitration only on the paths in `SKILL.md` Key points and **Review disposition** below. Delivery department reports those paths; planning **分发** arbitration. Delivery verify is not a trigger and has no `Challenge` field.
 - `git push` only the delivery **manage**, and only after delivery verify passed.
 - Unblock = close upstream tickets. Do not unblock with `remove-blocked-by`.
 - worktrees: `planning` implement creates them before 分发; `acceptance` implement removes after merge. Both semi-auto and full-auto. Under the Canvas container `worktree/`. See [worktree.md](worktree.md). Do not POST `worktree: true`. Do not POST a tree path as `working_dir`.
@@ -36,6 +36,52 @@
 - This department **manage** closes or reopens a graph ticket → run `python <engineering-init>/scripts/render_graph.py --issue <spec> --write` (spec = `Part of #<n>`). Do not change contains / uses. Human review fail: only the **human** department reopens the implement ticket (3a).
 - Parallel = another 分发 (another 推进 on the planning department) or another planning department window. Not two tickets in one tree `PROCESS.md`.
 - Do not 分发 downstream while upstream still blocks. Named tickets neither.
+
+## Review disposition
+
+Delivery staffs implement, then review, and staffs verify only after review passes. Review pass with non-blocking notes remains a pass; copy the notes to the ticket comment, with no rework or arbitration. Blocking review failure skips verify.
+
+A blocking review failure returns findings to the original implement employee. Each finding is one block with a stable ID that remains unchanged across rework and fresh review:
+
+```
+ID: <stable finding ID>
+Category: <contract | correctness | test | quality | scope>
+Evidence: <contract/code evidence>
+Required behavior: <observable behavior required to pass>
+```
+
+The original implement employee returns exactly this disposition, with the accepted and disputed IDs partitioning every blocking finding ID:
+
+```
+Review disposition: accept | partial | dispute
+Accepted findings IDs: <stable finding IDs or none>
+Disputed findings IDs: <stable finding IDs or none>
+Reason: <contract/code evidence>
+Action: rework | arbitration
+```
+
+Follow this canonical transition table. `*` means any active delivery state. Every transition preserves `prior-work`: existing commits, current context, valid receipts, and unrelated completed work.
+
+| Current state | Event | Next state | Arbitration scope | Preserve |
+| --- | --- | --- | --- | --- |
+| `implementation` | `review-pass` | `verify` | `none` | `prior-work` |
+| `implementation` | `blocking-review-fail` | `disposition` | `none` | `prior-work` |
+| `disposition` | `accept-all` | `focused-rework` | `none` | `prior-work` |
+| `disposition` | `partial` | `arbitration` | `disputed-only` | `prior-work+accepted-fixes` |
+| `disposition` | `dispute-all` | `arbitration` | `disputed-only` | `prior-work` |
+| `focused-rework` | `rework-complete` | `fresh-review` | `none` | `prior-work` |
+| `fresh-review` | `review-pass` | `verify` | `none` | `prior-work` |
+| `fresh-review` | `same-finding-blocking-fail` | `post-rework-disposition` | `none` | `prior-work+accepted-fixes` |
+| `post-rework-disposition` | `accept-repeated` | `send-back` | `none` | `prior-work+accepted-fixes` |
+| `post-rework-disposition` | `partial` | `arbitration` | `repeated-disputed-only` | `prior-work+accepted-fixes` |
+| `post-rework-disposition` | `dispute-repeated` | `arbitration` | `repeated-disputed-only` | `prior-work+accepted-fixes` |
+| `*` | `explicit-contract-upstream-or-user-challenge` | `arbitration` | `challenged-only` | `prior-work+accepted-fixes` |
+
+`accept-all` requires `Review disposition: accept` and `Action: rework`; the same implement employee performs focused rework and receives a fresh review without arbitration. On a fresh blocking review of the same stable finding, the original implement employee returns a new disposition in `post-rework-disposition`. Accepting all repeated findings sends delivery back. A `partial` disposition sends only repeated disputed stable IDs to arbitration and preserves accepted fixes; `dispute-repeated` sends all repeated disputed stable IDs to arbitration. There is no transition from `post-rework-disposition` to `focused-rework`, so the same-finding loop is bounded.
+
+`partial` requires both accepted and disputed IDs and `Action: arbitration`. `dispute-all` requires disputed IDs only and `Action: arbitration`. Accepted independent findings may be fixed without re-litigating them. An explicit contract or upstream challenge from implement/review, or a user challenge, takes the wildcard direct-arbitration transition without a disposition. Blocking review failure has no transition to verify; review pass with non-blocking notes takes `review-pass`, remains a pass, and copies the notes to the ticket comment.
+
+A malformed disposition or findings without all four fields are incomplete receipts. Do not staff verify, push, close, or notify until corrected. Arbitration receives only the finding blocks selected by the table's arbitration scope, the disposition when one exists, relevant implementation/review receipts, and preserved accepted fixes; it does not reconsider accepted independent findings.
 
 ## Key points: what each hop does
 
@@ -89,7 +135,7 @@ Tree already has `issue:` = this open ticket and `template:` is a department hop
 | implement ticket `ready-for-agent` (no `engineering:pr`) | `delivery` | **分发** delivery department |
 | acceptance ticket `ready-for-agent` (has `engineering:pr`) and unblocked | `acceptance` | **分发** acceptance department |
 | `ready-for-human` | `human` | **分发** human department |
-| conflict or implement/review/user challenge | `arbitration` | **分发** arbitration department |
+| disputed review finding after disposition/rework, explicit contract/upstream challenge, or user challenge | `arbitration` | **分发** arbitration department |
 
 ## Test intensity
 
