@@ -93,6 +93,12 @@ python <this-skill>/scripts/spawn.py --mode open --profile-id <uuid> --prompt-fi
 python <this-skill>/scripts/spawn.py --mode dispatch --profile-id <uuid> --prompt-file <txt> --max-iterations <n> --poll-sec 0
 ```
 
+A department manage window that requires GitHub also passes both:
+```
+--department <delivery|acceptance|arbitration|human> --github-token-secret <PROCESS.github-token-secret>
+```
+
+The adapter maps that registered source to consumer `GH_TOKEN` with an authenticated `LookupSecret`. Source `none`, unavailable source, authentication failure, or lookup/create rejection fails closed. Never alias the source variable in a prompt. The script adds a sanitized `githubbinding` tag and `github_binding` result only; it never stores the source identity or value there. Do not pass these options for employee Task/delegate work. Regular OpenHands preflight explicitly references `GH_TOKEN`; ACP receives it in subprocess env. GitHub finalization failure must still preserve completed receipts and run **notify**.
 Omit `--this-id`. `spawn.py` resolves the Canvas `id` (cwd + running + `clientsource=agentcanvas`, **including** a department child with `parent_conversation_id`). cwd may be the imported container, or that container's `master/` / `root/` / `worktree/<tree>` — the script walks up to the imported `working_dir`. Env `OPENHANDS_CONVERSATION_ID` / `CONVERSATION_ID` wins. Several matches → the most recently updated. Passing `CURSOR_CONVERSATION_ID` 404s; do not grep after a 404. `--this-id` only if it is already a Canvas `id`.
 
 `spawn.py` GETs this conversation, copies `working_dir` and tags, sets `tags.clientsource=agentcanvas`, keeps `worktree: false`. Dispatch also sets `parent_conversation_id`. Do not pass a ticket-tree path. Do not hand-write POST or GET. Script exit ≠ 0 → **stop**. Do not retry with a guessed id. Do not grep disk.
