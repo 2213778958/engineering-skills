@@ -60,7 +60,7 @@ Reason: <contract/code evidence>
 Action: rework | arbitration
 ```
 
-Follow this canonical transition table. `*` means any active delivery state. Every transition preserves `prior-work`: existing commits, current context, valid receipts, and unrelated completed work.
+Follow this canonical transition table. Every transition preserves `prior-work`: existing commits, current context, valid receipts, and unrelated completed work.
 
 | Current state | Event | Next state | Arbitration scope | Preserve |
 | --- | --- | --- | --- | --- |
@@ -82,7 +82,6 @@ Follow this canonical transition table. `*` means any active delivery state. Eve
 | `post-rework-disposition` | `accept-repeated` | `send-back` | `none` | `prior-work+accepted-fixes` |
 | `post-rework-disposition` | `partial` | `arbitration` | `repeated-disputed-only` | `prior-work+accepted-fixes` |
 | `post-rework-disposition` | `dispute-repeated` | `arbitration` | `repeated-disputed-only` | `prior-work+accepted-fixes` |
-| `*` | `explicit-contract-upstream-or-user-challenge` | `arbitration` | `challenged-only` | `prior-work+accepted-fixes` |
 
 `accept-all` requires `Review disposition: accept` and `Action: rework`; the same implement employee performs focused rework and receives a fresh review without arbitration. On a fresh blocking review of the same stable finding, the original implement employee returns a new disposition in `post-rework-disposition`. Accepting all repeated findings sends delivery back. A `partial` disposition sends only repeated disputed stable IDs to arbitration and preserves accepted fixes; `dispute-repeated` sends all repeated disputed stable IDs to arbitration. There is no transition from `post-rework-disposition` to `focused-rework`, so the same-finding loop is bounded.
 

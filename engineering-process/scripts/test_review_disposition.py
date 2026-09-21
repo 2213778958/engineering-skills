@@ -101,10 +101,18 @@ class ReviewDispositionScenarioTest(unittest.TestCase):
             self.assertEqual(("arbitration", "challenged-only"), (next_state, scope))
 
     def test_review_challenge_cannot_verify_or_arbitrate_directly(self) -> None:
-        for event in ("review-contract-challenge", "review-upstream-challenge"):
+        review_events = ("review-contract-challenge", "review-upstream-challenge")
+        for event in review_events:
             self.assertEqual("disposition", self.flow.step("implementation", event)[0])
             with self.assertRaises(ValueError):
                 self.flow.step("disposition", "review-pass")
+            self.assertNotIn(("*", event), self.flow.transitions)
+
+        direct_fallbacks = {
+            key for key, transition in self.flow.transitions.items()
+            if key[0] == "*" and transition[0] == "arbitration"
+        }
+        self.assertEqual(set(), direct_fallbacks)
 
     def test_repeated_disagreement_is_reachable_and_bounded(self) -> None:
         state, scopes, _ = self.flow.walk(
