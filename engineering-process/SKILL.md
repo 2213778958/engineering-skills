@@ -259,7 +259,7 @@ verify=`fail` (when a command exists), implement=`fail` and paths 2–3 did not 
 
 implement=`pass` and review=`pass` and (`verify: none` or pass) → **delivery manage** `git push -u origin HEAD` → **close this implement ticket**. Tree `issue: none`. Run `python <engineering-init>/scripts/render_graph.py --issue <spec> --write` (spec = `Part of #<n>` on this ticket). Script fail → **fail**. Notify (`hop: done`). Do not open a PR. Do not change gate-ticket edges. Stop.
 
-A disposition with `Action: arbitration`, the same finding disputed after focused rework, an explicit contract/upstream challenge, or a user challenge → do not push; write tree `template: arbitration`; keep `issue:`; notify (`hop: need-arbitration`). Include only disputed finding IDs and preserve accepted fixes and prior valid receipts. Do not run 3b in this window. Next planning 推进 **分发** arbitration (tree hop already set).
+A disposition with `Action: arbitration`, the same finding disputed after focused rework, an implement-originated explicit contract/upstream challenge, or a user challenge → do not push; write tree `template: arbitration`; keep `issue:`; notify (`hop: need-arbitration`). Include only disputed finding IDs and preserve accepted fixes and prior valid receipts. A review-originated contract/upstream challenge follows the blocking-review disposition flow first. Do not run 3b in this window. Next planning 推进 **分发** arbitration (tree hop already set).
 
 ### 3e. `acceptance` (department)
 

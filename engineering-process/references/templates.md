@@ -54,8 +54,8 @@ The original implement employee returns exactly this disposition, with the accep
 
 ```
 Review disposition: accept | partial | dispute
-Accepted findings IDs: <stable finding IDs or none>
-Disputed findings IDs: <stable finding IDs or none>
+Accepted findings: <stable finding IDs or none>
+Disputed findings: <stable finding IDs or none>
 Reason: <contract/code evidence>
 Action: rework | arbitration
 ```
@@ -66,12 +66,19 @@ Follow this canonical transition table. `*` means any active delivery state. Eve
 | --- | --- | --- | --- | --- |
 | `implementation` | `review-pass` | `verify` | `none` | `prior-work` |
 | `implementation` | `blocking-review-fail` | `disposition` | `none` | `prior-work` |
+| `implementation` | `review-contract-challenge` | `disposition` | `none` | `prior-work` |
+| `implementation` | `review-upstream-challenge` | `disposition` | `none` | `prior-work` |
+| `implementation` | `implement-contract-challenge` | `arbitration` | `challenged-only` | `prior-work+accepted-fixes` |
+| `implementation` | `implement-upstream-challenge` | `arbitration` | `challenged-only` | `prior-work+accepted-fixes` |
+| `implementation` | `user-challenge` | `arbitration` | `challenged-only` | `prior-work+accepted-fixes` |
 | `disposition` | `accept-all` | `focused-rework` | `none` | `prior-work` |
 | `disposition` | `partial` | `arbitration` | `disputed-only` | `prior-work+accepted-fixes` |
 | `disposition` | `dispute-all` | `arbitration` | `disputed-only` | `prior-work` |
 | `focused-rework` | `rework-complete` | `fresh-review` | `none` | `prior-work` |
 | `fresh-review` | `review-pass` | `verify` | `none` | `prior-work` |
 | `fresh-review` | `same-finding-blocking-fail` | `post-rework-disposition` | `none` | `prior-work+accepted-fixes` |
+| `fresh-review` | `review-contract-challenge` | `post-rework-disposition` | `none` | `prior-work+accepted-fixes` |
+| `fresh-review` | `review-upstream-challenge` | `post-rework-disposition` | `none` | `prior-work+accepted-fixes` |
 | `post-rework-disposition` | `accept-repeated` | `send-back` | `none` | `prior-work+accepted-fixes` |
 | `post-rework-disposition` | `partial` | `arbitration` | `repeated-disputed-only` | `prior-work+accepted-fixes` |
 | `post-rework-disposition` | `dispute-repeated` | `arbitration` | `repeated-disputed-only` | `prior-work+accepted-fixes` |
@@ -79,7 +86,7 @@ Follow this canonical transition table. `*` means any active delivery state. Eve
 
 `accept-all` requires `Review disposition: accept` and `Action: rework`; the same implement employee performs focused rework and receives a fresh review without arbitration. On a fresh blocking review of the same stable finding, the original implement employee returns a new disposition in `post-rework-disposition`. Accepting all repeated findings sends delivery back. A `partial` disposition sends only repeated disputed stable IDs to arbitration and preserves accepted fixes; `dispute-repeated` sends all repeated disputed stable IDs to arbitration. There is no transition from `post-rework-disposition` to `focused-rework`, so the same-finding loop is bounded.
 
-`partial` requires both accepted and disputed IDs and `Action: arbitration`. `dispute-all` requires disputed IDs only and `Action: arbitration`. Accepted independent findings may be fixed without re-litigating them. An explicit contract or upstream challenge from implement/review, or a user challenge, takes the wildcard direct-arbitration transition without a disposition. Blocking review failure has no transition to verify; review pass with non-blocking notes takes `review-pass`, remains a pass, and copies the notes to the ticket comment.
+`partial` requires both accepted and disputed IDs and `Action: arbitration`. `dispute-all` requires disputed IDs only and `Action: arbitration`. Accepted independent findings may be fixed without re-litigating them. A review-originated contract or upstream challenge is a blocking review result and must return to the original implement employee for disposition. Only an implement-originated contract or upstream challenge, or a user challenge, takes direct arbitration without a disposition. Blocking review failure has no transition to verify; review pass with non-blocking notes takes `review-pass`, remains a pass, and copies the notes to the ticket comment.
 
 A malformed disposition or findings without all four fields are incomplete receipts. Do not staff verify, push, close, or notify until corrected. Arbitration receives only the finding blocks selected by the table's arbitration scope, the disposition when one exists, relevant implementation/review receipts, and preserved accepted fixes; it does not reconsider accepted independent findings.
 
