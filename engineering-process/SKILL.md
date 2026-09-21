@@ -93,7 +93,7 @@ Duties: templates.md **职责表**.
 
 **Enter `arbitration` only on these three paths. No other receipt may 分发 arbitration.**
 
-1. **Disputed review finding:** `partial` / `dispute` under templates.md **Review disposition**, or the same finding remains disputed after focused rework. Arbitrate only disputed finding IDs.
+1. **Disputed review finding:** `partial` / `dispute` under templates.md **Review disposition**, or `dispute-repeated` from its `post-rework-disposition` state. Arbitrate only the disputed finding IDs selected by that flow.
 2. **Employee challenge:** implement or review explicitly challenges the contract or upstream (`Challenge: upstream #<n>` or `contract`).
 3. **User challenge:** the user challenges this ticket's implementation.
 
