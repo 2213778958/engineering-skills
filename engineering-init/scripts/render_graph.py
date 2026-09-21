@@ -7,6 +7,8 @@ import json
 import re
 import subprocess
 import sys
+from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Any
 
 
@@ -45,7 +47,7 @@ def issue_scan_text(body: str) -> str:
     return HEX_COLOR_RE.sub("", strip_graph_blocks(body or ""))
 
 
-def run_gh(args: list[str]) -> str:
+def run_gh(args: list[str], stage: str) -> str:
     proc = subprocess.run(
         ["gh", *args],
         capture_output=True,
@@ -55,30 +57,32 @@ def run_gh(args: list[str]) -> str:
         check=False,
     )
     if proc.returncode != 0:
-        raise RuntimeError(proc.stderr.strip() or proc.stdout.strip() or "gh failed")
+        detail = proc.stderr.strip() or proc.stdout.strip() or "gh failed"
+        raise QueryError(stage, detail)
     return proc.stdout
 
 
-def gh_json(args: list[str]) -> Any:
-    return json.loads(run_gh(args))
+def gh_json(args: list[str], stage: str) -> Any:
+    try:
+        return json.loads(run_gh(args, stage))
+    except json.JSONDecodeError as exc:
+        raise QueryError(stage, f"invalid JSON: {exc}") from exc
 
 
 def repo_name() -> str:
-    data = gh_json(["repo", "view", "--json", "nameWithOwner"])
-    return str(data["nameWithOwner"])
-
-
-def view_issue(number: int) -> dict[str, Any]:
-    fields = "number,title,state,url,body,blockedBy,blocking"
+    data = gh_json(["repo", "view", "--json", "nameWithOwner"], "repository identity")
     try:
-        return gh_json(["issue", "view", str(number), "--json", fields])
-    except RuntimeError:
-        data = gh_json(
-            ["issue", "view", str(number), "--json", "number,title,state,url,body"]
-        )
-        data.setdefault("blockedBy", [])
-        data.setdefault("blocking", [])
-        return data
+        return str(data["nameWithOwner"])
+    except (KeyError, TypeError) as exc:
+        raise QueryError("repository identity", "response lacks nameWithOwner") from exc
+
+
+def view_issue(number: int, owner_repo: str) -> dict[str, Any]:
+    fields = "number,title,state,url,body,blockedBy,blocking"
+    return gh_json(
+        ["issue", "view", str(number), "--repo", owner_repo, "--json", fields],
+        f"issue view #{number} in {owner_repo}",
+    )
 
 
 def issue_numbers(items: Any) -> list[int]:
@@ -94,19 +98,23 @@ def issue_numbers(items: Any) -> list[int]:
 
 
 def rest_dep_numbers(owner_repo: str, number: int, kind: str) -> list[int]:
-    try:
-        raw = run_gh(
-            [
-                "api",
-                f"repos/{owner_repo}/issues/{number}/dependencies/{kind}",
-                "--paginate",
-            ]
-        )
-    except RuntimeError:
-        return []
+    raw = run_gh(
+        [
+            "api",
+            f"repos/{owner_repo}/issues/{number}/dependencies/{kind}",
+            "--paginate",
+        ],
+        f"{kind} dependencies for #{number} in {owner_repo}",
+    )
     if not raw.strip():
         return []
-    data = json.loads(raw)
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise QueryError(
+            f"{kind} dependencies for #{number} in {owner_repo}",
+            f"invalid JSON: {exc}",
+        ) from exc
     if isinstance(data, dict) and "items" in data:
         data = data["items"]
     if not isinstance(data, list):
@@ -121,15 +129,18 @@ def rest_dep_numbers(owner_repo: str, number: int, kind: str) -> list[int]:
 
 
 def sub_issue_numbers(owner_repo: str, number: int) -> list[int]:
-    try:
-        raw = run_gh(
-            ["api", f"repos/{owner_repo}/issues/{number}/sub_issues", "--paginate"]
-        )
-    except RuntimeError:
-        return []
+    raw = run_gh(
+        ["api", f"repos/{owner_repo}/issues/{number}/sub_issues", "--paginate"],
+        f"sub-issues for #{number} in {owner_repo}",
+    )
     if not raw.strip():
         return []
-    data = json.loads(raw)
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise QueryError(
+            f"sub-issues for #{number} in {owner_repo}", f"invalid JSON: {exc}"
+        ) from exc
     if isinstance(data, dict) and "items" in data:
         data = data["items"]
     if not isinstance(data, list):
@@ -137,24 +148,24 @@ def sub_issue_numbers(owner_repo: str, number: int) -> list[int]:
     return [int(item["number"]) for item in data if isinstance(item, dict) and "number" in item]
 
 
-def part_of_children(spec: int) -> list[int]:
-    try:
-        rows = gh_json(
-            [
-                "issue",
-                "list",
-                "--state",
-                "all",
-                "--limit",
-                "100",
-                "--search",
-                f"Part of #{spec}",
-                "--json",
-                "number,body",
-            ]
-        )
-    except RuntimeError:
-        return []
+def part_of_children(spec: int, owner_repo: str) -> list[int]:
+    rows = gh_json(
+        [
+            "issue",
+            "list",
+            "--repo",
+            owner_repo,
+            "--state",
+            "all",
+            "--limit",
+            "100",
+            "--search",
+            f'"Part of #{spec}"',
+            "--json",
+            "number,body",
+        ],
+        f"Part-of search for #{spec} in {owner_repo}",
+    )
     out: list[int] = []
     for row in rows:
         n = int(row["number"])
@@ -193,8 +204,8 @@ def merge_deps(meta: dict[str, Any], owner_repo: str, number: int) -> tuple[list
 def collect(spec: int, owner_repo: str) -> dict[int, dict[str, Any]]:
     seeds = {spec}
     seeds.update(sub_issue_numbers(owner_repo, spec))
-    seeds.update(part_of_children(spec))
-    spec_meta = view_issue(spec)
+    seeds.update(part_of_children(spec, owner_repo))
+    spec_meta = view_issue(spec, owner_repo)
     seeds.update(body_refs(spec_meta.get("body") or "", spec=spec))
 
     nodes: dict[int, dict[str, Any]] = {}
@@ -203,7 +214,7 @@ def collect(spec: int, owner_repo: str) -> dict[int, dict[str, Any]]:
         n = pending.pop()
         if n in nodes:
             continue
-        meta = spec_meta if n == spec else view_issue(n)
+        meta = spec_meta if n == spec else view_issue(n, owner_repo)
         blocked_by, blocking = merge_deps(meta, owner_repo, n)
         meta["_blocked_by"] = blocked_by
         meta["_blocking"] = blocking
@@ -218,6 +229,15 @@ def collect(spec: int, owner_repo: str) -> dict[int, dict[str, Any]]:
         if only_container and children:
             del nodes[spec]
     return nodes
+
+
+class QueryError(RuntimeError):
+    """A required GitHub query failed, including its original stderr."""
+
+    def __init__(self, stage: str, detail: str) -> None:
+        super().__init__(f"{stage}: {detail}")
+        self.stage = stage
+        self.detail = detail
 
 
 GRAPH_TITLE = "Graph（流程）"
@@ -288,23 +308,30 @@ def upsert_body(body: str, diagram: str) -> str:
     return text.rstrip() + "\n\n## " + GRAPH_TITLE + "\n\n" + block + "\n"
 
 
-def write_spec(number: int, diagram: str) -> None:
-    current = view_issue(number)
+def write_spec(number: int, owner_repo: str, diagram: str) -> None:
+    current = view_issue(number, owner_repo)
     new_body = upsert_body(current.get("body") or "", diagram)
     path = _write_temp(new_body)
-    run_gh(["issue", "edit", str(number), "--body-file", str(path)])
+    try:
+        run_gh(
+            [
+                "issue",
+                "edit",
+                str(number),
+                "--repo",
+                owner_repo,
+                "--body-file",
+                str(path),
+            ],
+            f"write graph to #{number} in {owner_repo}",
+        )
+    finally:
+        path.unlink(missing_ok=True)
 
 
-def _write_temp(text: str):
-    from pathlib import Path
-    from tempfile import NamedTemporaryFile
-
+def _write_temp(text: str) -> Path:
     tmp = NamedTemporaryFile(
-        mode="w",
-        encoding="utf-8",
-        suffix=".md",
-        delete=False,
-        newline="\n",
+        mode="w", encoding="utf-8", suffix=".md", delete=False, newline="\n"
     )
     tmp.write(text)
     tmp.close()
@@ -323,10 +350,11 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    owner_repo = repo_name()
-    nodes = collect(args.issue, owner_repo)
-    if not nodes:
-        print("no tickets found for spec", args.issue, file=sys.stderr)
+    try:
+        owner_repo = repo_name()
+        nodes = collect(args.issue, owner_repo)
+    except QueryError as exc:
+        print(f"error: {exc}", file=sys.stderr)
         return 1
 
     diagram = mermaid(nodes)
@@ -343,8 +371,12 @@ def main() -> int:
             return 2
 
     if args.write:
-        write_spec(args.issue, diagram)
-        print(f"wrote graph to #{args.issue}", file=sys.stderr)
+        try:
+            write_spec(args.issue, owner_repo, diagram)
+        except QueryError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        print(f"wrote graph to {owner_repo}#{args.issue}", file=sys.stderr)
     return 0
 
 
