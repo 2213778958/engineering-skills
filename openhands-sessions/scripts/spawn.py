@@ -12,7 +12,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 BASE = os.environ.get("OPENHANDS_URL", "http://localhost:8000").rstrip("/")
@@ -20,10 +20,34 @@ KEY_PATH = Path.home() / ".openhands" / "agent-canvas" / "api-key.txt"
 UI = os.environ.get("OPENHANDS_UI", "http://localhost:3001").rstrip("/")
 WT_SEGMENT = re.compile(r"(?:^|[\\/])worktree(?:[\\/]|$)", re.I)
 SIBLING_TREE = re.compile(r"-wt(?:-pr)?-\d+|[-_/]iso-\d+", re.I)
+SECRET_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+AUTHORIZED_DEPARTMENTS = ("delivery", "acceptance", "arbitration", "human")
+GITHUB_CONSUMER = "GH_TOKEN"
 
 
-def api(method: str, path: str, body: dict | None = None, timeout: int = 60) -> object:
-    key = KEY_PATH.read_text(encoding="utf-8").strip()
+def session_key() -> str:
+    """Read the Canvas session API key.
+
+    Returns:
+        The key used only for authenticated local API requests.
+    """
+    try:
+        key = KEY_PATH.read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        raise SystemExit("cannot read Canvas session authentication") from exc
+    if not key:
+        raise SystemExit("Canvas session authentication is empty")
+    return key
+
+
+def api(
+    method: str,
+    path: str,
+    body: dict | None = None,
+    timeout: int = 60,
+    redact_error: bool = False,
+) -> object:
+    key = session_key()
     data = None if body is None else json.dumps(body).encode("utf-8")
     headers = {
         "X-Session-API-Key": key,
@@ -38,10 +62,149 @@ def api(method: str, path: str, body: dict | None = None, timeout: int = 60) -> 
             raw = resp.read().decode("utf-8")
             return json.loads(raw) if raw else {}
     except HTTPError as exc:
+        if redact_error:
+            raise SystemExit(
+                f"HTTP {exc.code} {method} request rejected (details redacted)"
+            ) from exc
         err = exc.read().decode("utf-8", errors="replace")
         raise SystemExit(f"HTTP {exc.code} {method} {path}: {err[:2000]}") from exc
     except URLError as exc:
+        if redact_error:
+            raise SystemExit(f"{method} request failed (details redacted)") from exc
         raise SystemExit(f"{method} {path} failed: {exc}") from exc
+
+
+def github_binding(source: str, key: str) -> dict[str, dict[str, object]]:
+    """Map a registered source secret to the child GitHub consumer.
+
+    Args:
+        source: Registered settings secret name declared by the process.
+        key: Canvas session API key used by the authenticated lookup.
+
+    Returns:
+        A StartConversationRequest secrets mapping.
+    """
+    source = source.strip()
+    if source.lower() == "none":
+        raise SystemExit("GitHub credential binding is disabled (source is none)")
+    if not source or not SECRET_NAME.fullmatch(source):
+        raise SystemExit("GitHub credential source name is invalid")
+    return {
+        GITHUB_CONSUMER: {
+            "kind": "LookupSecret",
+            "url": f"{BASE}/api/settings/secrets/{quote(source, safe='')}",
+            "headers": {"X-Session-API-Key": key},
+            "description": "GitHub token for an authorized department",
+        }
+    }
+
+
+def probe_secret_source(source: str, key: str) -> None:
+    """Verify that the configured source exists and accepts authentication.
+
+    Args:
+        source: Registered settings secret name.
+        key: Canvas session API key.
+    """
+    binding = github_binding(source, key)[GITHUB_CONSUMER]
+    request = Request(
+        str(binding["url"]),
+        headers={"X-Session-API-Key": key, "Accept": "text/plain"},
+        method="GET",
+    )
+    try:
+        with urlopen(request, timeout=30):
+            return
+    except HTTPError as exc:
+        if exc.code in (401, 403):
+            raise SystemExit("GitHub credential source authentication failed") from exc
+        if exc.code == 404:
+            raise SystemExit("GitHub credential source is unavailable") from exc
+        raise SystemExit("GitHub credential source lookup was rejected") from exc
+    except URLError as exc:
+        raise SystemExit("GitHub credential source is unavailable") from exc
+
+
+def binding_status(bound: bool) -> dict[str, str]:
+    """Return a non-secret diagnostic status for a conversation binding.
+
+    Args:
+        bound: Whether the secure lookup binding was attached.
+
+    Returns:
+        Sanitized consumer identity and state, or an empty mapping.
+    """
+    if not bound:
+        return {}
+    return {"consumer": GITHUB_CONSUMER, "status": "bound"}
+
+
+def bound_department_prompt(prompt: str) -> str:
+    """Add safe runtime preflight and finalization requirements.
+
+    Args:
+        prompt: Department task prompt.
+
+    Returns:
+        Prompt with no source name or credential value.
+    """
+    guidance = """GitHub credential binding: GH_TOKEN is securely bound for this department.
+Before GitHub-dependent work, run this redacted PowerShell preflight exactly so regular
+OpenHands sees the consumer name (ACP receives the subprocess environment):
+`if (-not $env:GH_TOKEN) { throw 'GH_TOKEN unavailable' }; gh auth status`
+Never print, log, persist, or pass the GH_TOKEN value as a command argument. Fail closed
+if the variable or authentication is unavailable. If GitHub finalization fails, still
+notify planning with the structured report and preserve completed receipts; report only
+sanitized binding status.
+"""
+    return guidance + prompt
+
+
+def conversation_body(
+    child_id: str,
+    profile_id: str,
+    working_dir: str,
+    prompt: str,
+    tags: dict[str, str],
+    max_iterations: int,
+    parent_id: str | None = None,
+    secrets: dict[str, dict[str, object]] | None = None,
+) -> dict[str, object]:
+    """Build a child creation request without implicit credential inheritance.
+
+    Args:
+        child_id: Requested conversation UUID.
+        profile_id: Agent profile UUID.
+        working_dir: Imported workspace path.
+        prompt: Initial task text.
+        tags: Sanitized conversation tags.
+        max_iterations: Agent iteration limit.
+        parent_id: Optional department parent conversation.
+        secrets: Explicit authorized-department secret mapping.
+
+    Returns:
+        StartConversationRequest-compatible payload.
+    """
+    body: dict[str, object] = {
+        "conversation_id": child_id,
+        "agent_profile_id": profile_id,
+        "workspace": {"kind": "LocalWorkspace", "working_dir": working_dir},
+        "confirmation_policy": {"kind": "NeverConfirm"},
+        "max_iterations": max_iterations,
+        "autotitle": True,
+        "worktree": False,
+        "tags": tags,
+        "initial_message": {
+            "role": "user",
+            "content": [{"type": "text", "text": prompt}],
+            "run": True,
+        },
+    }
+    if parent_id:
+        body["parent_conversation_id"] = parent_id
+    if secrets:
+        body["secrets"] = secrets
+    return body
 
 
 def get_conversation(cid: str) -> dict | None:
@@ -267,6 +430,8 @@ def main() -> None:
     parser.add_argument("--mode", choices=("open", "dispatch", "this", "notify"), required=True)
     parser.add_argument("--this-id", default="", help="Canvas GET id. Not CURSOR_CONVERSATION_ID. Omit to resolve.")
     parser.add_argument("--profile-id", default="")
+    parser.add_argument("--department", choices=AUTHORIZED_DEPARTMENTS)
+    parser.add_argument("--github-token-secret", default="")
     parser.add_argument("--prompt-file", default="")
     parser.add_argument("--max-iterations", type=int, default=500)
     parser.add_argument("--poll-sec", type=int, default=0)
@@ -337,29 +502,43 @@ def main() -> None:
     if why:
         raise SystemExit(f"refuse this conversation working_dir {wd!r}: {why}")
 
+    wants_binding = bool(args.department or args.github_token_secret)
+    if bool(args.department) != bool(args.github_token_secret):
+        raise SystemExit(
+            "GitHub binding requires both --department and --github-token-secret"
+        )
+    secrets = None
+    if wants_binding:
+        key = session_key()
+        probe_secret_source(args.github_token_secret, key)
+        secrets = github_binding(args.github_token_secret, key)
+        prompt = bound_department_prompt(prompt)
+
     child_id = str(uuid.uuid4())
     tags = canvas_tags(parent)
-    body: dict = {
-        "conversation_id": child_id,
-        "agent_profile_id": args.profile_id,
-        "workspace": {"kind": "LocalWorkspace", "working_dir": wd},
-        "confirmation_policy": {"kind": "NeverConfirm"},
-        "max_iterations": args.max_iterations,
-        "autotitle": True,
-        "worktree": False,
-        "tags": tags,
-        "initial_message": {
-            "role": "user",
-            "content": [{"type": "text", "text": prompt}],
-            "run": True,
-        },
-    }
-    if args.mode == "dispatch":
-        body["parent_conversation_id"] = this_id
+    if wants_binding:
+        tags["githubbinding"] = "gh-token-bound"
+    body = conversation_body(
+        child_id=child_id,
+        profile_id=args.profile_id,
+        working_dir=wd,
+        prompt=prompt,
+        tags=tags,
+        max_iterations=args.max_iterations,
+        parent_id=this_id if args.mode == "dispatch" else None,
+        secrets=secrets,
+    )
 
-    created = api("POST", "/api/conversations", body, timeout=120)
+    created = api(
+        "POST",
+        "/api/conversations",
+        body,
+        timeout=120,
+        redact_error=wants_binding,
+    )
     if not isinstance(created, dict):
-        raise SystemExit(f"unexpected create payload: {created!r}")
+        detail = " (details redacted)" if wants_binding else f": {created!r}"
+        raise SystemExit(f"unexpected create payload{detail}")
     cid = str(created.get("id") or created.get("conversation_id") or child_id)
     checked = ensure_child(cid, tags)
     got = working_dir_of(checked)
@@ -377,6 +556,7 @@ def main() -> None:
         "max_iterations": args.max_iterations,
         "launched_agent_profile": checked.get("launched_agent_profile"),
         "this_id": this_id,
+        "github_binding": binding_status(wants_binding),
     }
     print(json.dumps(report, ensure_ascii=False, indent=2), flush=True)
 
