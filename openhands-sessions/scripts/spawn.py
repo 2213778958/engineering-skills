@@ -276,6 +276,7 @@ def search_items(status: str | None = None) -> list[dict[str, Any]]:
     limit = 100
     offset = 0
     cursor: str | None = None
+    seen_cursors: set[str] = set()
     items: list[dict[str, Any]] = []
     while True:
         params: dict[str, str] = {"limit": str(limit), "offset": str(offset)}
@@ -293,8 +294,13 @@ def search_items(status: str | None = None) -> list[dict[str, Any]]:
 
         next_cursor = payload.get("next_cursor")
         if next_cursor is not None:
-            if not isinstance(next_cursor, str) or not next_cursor or next_cursor == cursor:
+            if (
+                not isinstance(next_cursor, str)
+                or not next_cursor
+                or next_cursor in seen_cursors
+            ):
                 raise SystemExit("conversation search returned an invalid next cursor")
+            seen_cursors.add(next_cursor)
             cursor = next_cursor
             continue
         has_more = payload.get("has_more") is True

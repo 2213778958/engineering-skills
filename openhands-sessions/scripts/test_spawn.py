@@ -198,6 +198,19 @@ class GitHubBindingTests(unittest.TestCase):
         ), self.assertRaisesRegex(SystemExit, "next cursor"):
             spawn.search_items()
 
+    def test_search_items_rejects_cursor_cycle(self) -> None:
+        with patch.object(
+            spawn,
+            "api",
+            side_effect=[
+                {"items": [], "next_cursor": "a"},
+                {"items": [], "next_cursor": "b"},
+                {"items": [], "next_cursor": "a"},
+            ],
+        ) as api, self.assertRaisesRegex(SystemExit, "next cursor"):
+            spawn.search_items()
+        self.assertEqual(api.call_count, 3)
+
     def test_dispatch_child_id_is_stable_reservation_key(self) -> None:
         first = spawn.dispatch_child_id("parent", "delivery")
         self.assertEqual(first, spawn.dispatch_child_id("parent", "delivery"))
