@@ -104,5 +104,82 @@ class GitHubBindingTests(unittest.TestCase):
         self.assertEqual(status, {"consumer": "GH_TOKEN", "status": "bound"})
         self.assertNotIn("session-key", output.getvalue())
         self.assertNotIn("GITHUB_PERSONAL_ACCESS_TOKEN", output.getvalue())
+
+    def test_dispatch_post_timeout_is_300_seconds(self) -> None:
+        source = MODULE_PATH.read_text(encoding="utf-8")
+        self.assertIn('"POST",\n        "/api/conversations",\n        body,\n        timeout=300,', source)
+
+    def test_duplicate_active_dispatch_is_rejected(self) -> None:
+        with patch.object(
+            spawn,
+            "search_items",
+            return_value=[
+                {
+                    "id": "existing",
+                    "parent_conversation_id": "parent",
+                    "status": "running",
+                    "tags": {"department": "delivery"},
+                }
+            ],
+        ), self.assertRaisesRegex(SystemExit, "existing"):
+            spawn.refuse_duplicate_dispatch(
+                "parent", {"department": "delivery"}
+            )
+
+    def test_duplicate_dispatch_force_is_allowed(self) -> None:
+        with patch.object(spawn, "search_items") as search:
+            spawn.refuse_duplicate_dispatch(
+                "parent", {"department": "delivery"}, force=True
+            )
+        search.assert_not_called()
+
+    def test_duplicate_guard_ignores_other_parent_department_and_terminal(self) -> None:
+        with patch.object(
+            spawn,
+            "search_items",
+            return_value=[
+                {
+                    "id": "other-parent",
+                    "parent_conversation_id": "other",
+                    "status": "running",
+                    "tags": {"department": "delivery"},
+                },
+                {
+                    "id": "other-department",
+                    "parent_conversation_id": "parent",
+                    "status": "running",
+                    "tags": {"department": "acceptance"},
+                },
+                {
+                    "id": "finished",
+                    "parent_conversation_id": "parent",
+                    "status": "finished",
+                    "tags": {"department": "delivery"},
+                },
+            ],
+        ):
+            spawn.refuse_duplicate_dispatch("parent", {"department": "delivery"})
+
+    def test_search_items_fails_closed_on_uncertain_payload(self) -> None:
+        for payload in ({}, {"items": ["not-an-item"]}):
+            with self.subTest(payload=payload), patch.object(
+                spawn, "api", return_value=payload
+            ), self.assertRaisesRegex(SystemExit, "invalid"):
+                spawn.search_items()
+
+    def test_skill_documents_soft_timeout_and_duplicate_contract(self) -> None:
+        skill = (MODULE_PATH.parent.parent / "SKILL.md").read_text(encoding="utf-8")
+        for text in (
+            "terminal timeout to at least 300 seconds",
+            "terminal soft timeout (`exit=-1`) is not a dispatch failure",
+            "receipt JSON containing `conversation_id` or `id` as success",
+            "GET the child status before retrying",
+            "never retry an active or unknown child",
+            "use `--force` only when the duplicate is intentional",
+        ):
+            with self.subTest(text=text):
+                self.assertIn(text, skill)
+
+
 if __name__ == "__main__":
     unittest.main()
