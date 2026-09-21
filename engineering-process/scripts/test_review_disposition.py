@@ -202,6 +202,14 @@ class ReviewDispositionSchemaTest(unittest.TestCase):
     def test_skill_delegates_to_the_canonical_flow(self) -> None:
         self.assertIn("templates.md **Review disposition**", SKILL)
         self.assertNotIn("Review disposition: accept | partial | dispute", SKILL)
+        self.assertIn(
+            "Direct arbitration is only implement challenges and user challenges.",
+            SKILL,
+        )
+        self.assertNotIn(
+            "implement or review explicitly challenges the contract or upstream",
+            SKILL,
+        )
 
 
 
