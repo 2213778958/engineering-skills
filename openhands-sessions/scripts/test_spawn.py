@@ -105,9 +105,9 @@ class GitHubBindingTests(unittest.TestCase):
         self.assertNotIn("session-key", output.getvalue())
         self.assertNotIn("GITHUB_PERSONAL_ACCESS_TOKEN", output.getvalue())
 
-    def test_dispatch_post_timeout_is_300_seconds(self) -> None:
+    def test_conversation_creation_post_timeout_is_180_seconds(self) -> None:
         source = MODULE_PATH.read_text(encoding="utf-8")
-        self.assertIn('"POST",\n        "/api/conversations",\n        body,\n        timeout=300,', source)
+        self.assertIn('"POST",\n        "/api/conversations",\n        body,\n        timeout=180,', source)
 
     def test_duplicate_active_dispatch_is_rejected(self) -> None:
         with patch.object(
@@ -192,6 +192,40 @@ class GitHubBindingTests(unittest.TestCase):
             )
         self.assertIn("cursor=next", api.call_args_list[1].args[1])
 
+    def test_search_items_follows_page_id_pages_without_offset_progression(self) -> None:
+        with patch.object(
+            spawn,
+            "api",
+            side_effect=[
+                {"items": [{"id": "first"}], "next_page_id": "page-2"},
+                {"items": [{"id": "second"}]},
+            ],
+        ) as api:
+            self.assertEqual(
+                [item["id"] for item in spawn.search_items()], ["first", "second"]
+            )
+        self.assertIn("page_id=page-2", api.call_args_list[1].args[1])
+        self.assertIn("offset=0", api.call_args_list[1].args[1])
+
+    def test_search_items_rejects_repeated_page_id(self) -> None:
+        with patch.object(
+            spawn,
+            "api",
+            side_effect=[
+                {"items": [{"id": "first"}], "next_page_id": "same"},
+                {"items": [{"id": "second"}], "next_page_id": "same"},
+            ],
+        ), self.assertRaisesRegex(SystemExit, "next page id"):
+            spawn.search_items()
+
+    def test_search_items_rejects_repeated_page(self) -> None:
+        page = {"items": [{"id": "same"}], "has_more": True}
+        with patch.object(spawn, "api", side_effect=[page, page]), self.assertRaisesRegex(
+            SystemExit, "repeated page"
+        ):
+            spawn.search_items()
+
+
     def test_search_items_rejects_repeated_cursor(self) -> None:
         with patch.object(
             spawn, "api", return_value={"items": [], "next_cursor": "same"}
@@ -221,7 +255,7 @@ class GitHubBindingTests(unittest.TestCase):
     def test_skill_documents_soft_timeout_and_duplicate_contract(self) -> None:
         skill = (MODULE_PATH.parent.parent / "SKILL.md").read_text(encoding="utf-8")
         for text in (
-            "terminal timeout to at least 300 seconds",
+            "terminal timeout to at least 200 seconds",
             "terminal soft timeout (`exit=-1`) is not a dispatch failure",
             "receipt JSON containing `conversation_id` or `id` as success",
             "GET the child status before retrying",
