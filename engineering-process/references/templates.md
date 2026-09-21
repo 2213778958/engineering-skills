@@ -73,10 +73,11 @@ Follow this canonical transition table. `*` means any active delivery state. Eve
 | `fresh-review` | `review-pass` | `verify` | `none` | `prior-work` |
 | `fresh-review` | `same-finding-blocking-fail` | `post-rework-disposition` | `none` | `prior-work+accepted-fixes` |
 | `post-rework-disposition` | `accept-repeated` | `send-back` | `none` | `prior-work+accepted-fixes` |
+| `post-rework-disposition` | `partial` | `arbitration` | `repeated-disputed-only` | `prior-work+accepted-fixes` |
 | `post-rework-disposition` | `dispute-repeated` | `arbitration` | `repeated-disputed-only` | `prior-work+accepted-fixes` |
 | `*` | `explicit-contract-upstream-or-user-challenge` | `arbitration` | `challenged-only` | `prior-work+accepted-fixes` |
 
-`accept-all` requires `Review disposition: accept` and `Action: rework`; the same implement employee performs focused rework and receives a fresh review without arbitration. On a fresh blocking review of the same stable finding, the original implement employee returns a new disposition in `post-rework-disposition`. Accepting that repeated finding sends delivery back; disputing it takes the `dispute-repeated` transition directly to arbitration for only that finding. There is no transition from `post-rework-disposition` to `focused-rework`, so the same-finding loop is bounded.
+`accept-all` requires `Review disposition: accept` and `Action: rework`; the same implement employee performs focused rework and receives a fresh review without arbitration. On a fresh blocking review of the same stable finding, the original implement employee returns a new disposition in `post-rework-disposition`. Accepting all repeated findings sends delivery back. A `partial` disposition sends only repeated disputed stable IDs to arbitration and preserves accepted fixes; `dispute-repeated` sends all repeated disputed stable IDs to arbitration. There is no transition from `post-rework-disposition` to `focused-rework`, so the same-finding loop is bounded.
 
 `partial` requires both accepted and disputed IDs and `Action: arbitration`. `dispute-all` requires disputed IDs only and `Action: arbitration`. Accepted independent findings may be fixed without re-litigating them. An explicit contract or upstream challenge from implement/review, or a user challenge, takes the wildcard direct-arbitration transition without a disposition. Blocking review failure has no transition to verify; review pass with non-blocking notes takes `review-pass`, remains a pass, and copies the notes to the ticket comment.
 

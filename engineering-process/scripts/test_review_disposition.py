@@ -96,6 +96,31 @@ class ReviewDispositionScenarioTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.flow.step("post-rework-disposition", "accept-all")
 
+    def test_repeated_partial_arbitrates_only_disputed_ids_once(self) -> None:
+        accepted_ids = {"RVW-ACCEPTED"}
+        disputed_ids = {"RVW-DISPUTED"}
+        state, scope, preserve = self.flow.step("post-rework-disposition", "partial")
+        arbitrated_ids = disputed_ids if scope == "repeated-disputed-only" else (
+            accepted_ids | disputed_ids
+        )
+        self.assertEqual("arbitration", state)
+        self.assertEqual(disputed_ids, arbitrated_ids)
+        self.assertTrue(accepted_ids.isdisjoint(arbitrated_ids))
+        self.assertEqual("prior-work+accepted-fixes", preserve)
+        self.assertFalse(
+            any(
+                current == "post-rework-disposition" and next_state == "focused-rework"
+                for (current, _), (next_state, _, _) in self.flow.transitions.items()
+            )
+        )
+        for item in (
+            "existing commits",
+            "current context",
+            "valid receipts",
+            "unrelated completed work",
+        ):
+            self.assertIn(item, TEMPLATES)
+
     def test_blocking_review_cannot_skip_to_verify(self) -> None:
         state, _, _ = self.flow.walk("blocking-review-fail")
         self.assertEqual("disposition", state)
