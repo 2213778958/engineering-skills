@@ -77,11 +77,42 @@ class ReviewDispositionScenarioTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.flow.step("disposition", "review-pass")
 
-    def test_explicit_challenge_enters_direct_arbitration(self) -> None:
-        event = "explicit-contract-upstream-or-user-challenge"
-        for state in ("implementation", "disposition", "fresh-review"):
-            next_state, scope, _ = self.flow.step(state, event)
+    def test_review_contract_challenge_returns_to_implement_disposition(self) -> None:
+        next_state, scope, preserve = self.flow.step(
+            "implementation", "review-contract-challenge"
+        )
+        self.assertEqual(("disposition", "none"), (next_state, scope))
+        self.assertEqual("prior-work", preserve)
+
+    def test_review_upstream_challenge_returns_to_implement_disposition(self) -> None:
+        next_state, scope, preserve = self.flow.step(
+            "implementation", "review-upstream-challenge"
+        )
+        self.assertEqual(("disposition", "none"), (next_state, scope))
+        self.assertEqual("prior-work", preserve)
+
+    def test_implement_and_user_challenges_enter_direct_arbitration(self) -> None:
+        for event in (
+            "implement-contract-challenge",
+            "implement-upstream-challenge",
+            "user-challenge",
+        ):
+            next_state, scope, _ = self.flow.step("implementation", event)
             self.assertEqual(("arbitration", "challenged-only"), (next_state, scope))
+
+    def test_review_challenge_cannot_verify_or_arbitrate_directly(self) -> None:
+        review_events = ("review-contract-challenge", "review-upstream-challenge")
+        for event in review_events:
+            self.assertEqual("disposition", self.flow.step("implementation", event)[0])
+            with self.assertRaises(ValueError):
+                self.flow.step("disposition", "review-pass")
+            self.assertNotIn(("*", event), self.flow.transitions)
+
+        direct_fallbacks = {
+            key for key, transition in self.flow.transitions.items()
+            if key[0] == "*" and transition[0] == "arbitration"
+        }
+        self.assertEqual(set(), direct_fallbacks)
 
     def test_repeated_disagreement_is_reachable_and_bounded(self) -> None:
         state, scopes, _ = self.flow.walk(
@@ -122,10 +153,15 @@ class ReviewDispositionScenarioTest(unittest.TestCase):
             self.assertIn(item, TEMPLATES)
 
     def test_blocking_review_cannot_skip_to_verify(self) -> None:
-        state, _, _ = self.flow.walk("blocking-review-fail")
-        self.assertEqual("disposition", state)
-        with self.assertRaises(ValueError):
-            self.flow.step(state, "review-pass")
+        for event in (
+            "blocking-review-fail",
+            "review-contract-challenge",
+            "review-upstream-challenge",
+        ):
+            state, _, _ = self.flow.walk(event)
+            self.assertEqual("disposition", state)
+            with self.assertRaises(ValueError):
+                self.flow.step(state, "review-pass")
         self.assertEqual("verify", self.flow.step("implementation", "review-pass")[0])
 
     def test_every_path_preserves_prior_work_and_accepted_fixes(self) -> None:
@@ -156,8 +192,8 @@ class ReviewDispositionSchemaTest(unittest.TestCase):
             TEMPLATES,
             re.compile(
                 r"Review disposition: accept \| partial \| dispute\n"
-                r"Accepted findings IDs: <stable finding IDs or none>\n"
-                r"Disputed findings IDs: <stable finding IDs or none>\n"
+                r"Accepted findings: <stable finding IDs or none>\n"
+                r"Disputed findings: <stable finding IDs or none>\n"
                 r"Reason: <contract/code evidence>\n"
                 r"Action: rework \| arbitration"
             ),
@@ -166,6 +202,14 @@ class ReviewDispositionSchemaTest(unittest.TestCase):
     def test_skill_delegates_to_the_canonical_flow(self) -> None:
         self.assertIn("templates.md **Review disposition**", SKILL)
         self.assertNotIn("Review disposition: accept | partial | dispute", SKILL)
+        self.assertIn(
+            "Direct arbitration is only implement challenges and user challenges.",
+            SKILL,
+        )
+        self.assertNotIn(
+            "implement or review explicitly challenges the contract or upstream",
+            SKILL,
+        )
 
 
 

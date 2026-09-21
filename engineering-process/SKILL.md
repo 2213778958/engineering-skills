@@ -94,10 +94,10 @@ Duties: templates.md **职责表**.
 **Enter `arbitration` only on these three paths. No other receipt may 分发 arbitration.**
 
 1. **Disputed review finding:** `partial` / `dispute` under templates.md **Review disposition**, or `dispute-repeated` from its `post-rework-disposition` state. Arbitrate only the disputed finding IDs selected by that flow.
-2. **Employee challenge:** implement or review explicitly challenges the contract or upstream (`Challenge: upstream #<n>` or `contract`).
+2. **Implement challenge:** implement explicitly challenges the contract or upstream (`Challenge: upstream #<n>` or `contract`). Review-originated challenges follow the disposition flow above.
 3. **User challenge:** the user challenges this ticket's implementation.
 
-An ordinary implement `Result: pass` plus blocking review `Result: fail` is not arbitration; follow templates.md **Review disposition** first. Direct arbitration is only paths 2–3. **Verify is not a trigger.** Delivery/acceptance verify has no `Challenge` field. `verify:`/`accept:` fail → send implement back or isolate; do not 分发 3b. Command green with extra notes → write a ticket comment; delivery may still pass. If verify writes `Challenge` anyway → treat it as `Notes`; do not enter 3b.
+An ordinary implement `Result: pass` plus blocking review `Result: fail` is not arbitration; follow templates.md **Review disposition** first. Direct arbitration is only implement challenges and user challenges. **Verify is not a trigger.** Delivery/acceptance verify has no `Challenge` field. `verify:`/`accept:` fail → send implement back or isolate; do not 分发 3b. Command green with extra notes → write a ticket comment; delivery may still pass. If verify writes `Challenge` anyway → treat it as `Notes`; do not enter 3b.
 
 **Not arbitration:** verify=`fail` → send implement back. implement=`fail` and paths 2–3 did not fire → delivery failed.
 
@@ -259,7 +259,7 @@ verify=`fail` (when a command exists), implement=`fail` and paths 2–3 did not 
 
 implement=`pass` and review=`pass` and (`verify: none` or pass) → **delivery manage** `git push -u origin HEAD` → **close this implement ticket**. Tree `issue: none`. Run `python <engineering-init>/scripts/render_graph.py --issue <spec> --write` (spec = `Part of #<n>` on this ticket). Script fail → **fail**. Notify (`hop: done`). Do not open a PR. Do not change gate-ticket edges. Stop.
 
-A disposition with `Action: arbitration`, the same finding disputed after focused rework, an explicit contract/upstream challenge, or a user challenge → do not push; write tree `template: arbitration`; keep `issue:`; notify (`hop: need-arbitration`). Include only disputed finding IDs and preserve accepted fixes and prior valid receipts. Do not run 3b in this window. Next planning 推进 **分发** arbitration (tree hop already set).
+A disposition with `Action: arbitration`, the same finding disputed after focused rework, an implement-originated explicit contract/upstream challenge, or a user challenge → do not push; write tree `template: arbitration`; keep `issue:`; notify (`hop: need-arbitration`). Include only disputed finding IDs and preserve accepted fixes and prior valid receipts. A review-originated contract/upstream challenge follows the blocking-review disposition flow first. Do not run 3b in this window. Next planning 推进 **分发** arbitration (tree hop already set).
 
 ### 3e. `acceptance` (department)
 
