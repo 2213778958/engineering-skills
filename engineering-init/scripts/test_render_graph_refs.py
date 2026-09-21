@@ -1,5 +1,15 @@
 #!/usr/bin/env python3
+import contextlib
+import io
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import render_graph
 from render_graph import ISSUE_RE, body_refs, issue_scan_text, mermaid
+
+RENDERER = Path(__file__).with_name("render_graph.py")
 
 MERMAID = """
 <!-- engineering:graph -->
@@ -10,6 +20,68 @@ i8256["#8256 ghost"]:::closed
 ```
 <!-- /engineering:graph -->
 """
+
+
+def run_renderer(mode: str, *args: str) -> tuple[subprocess.CompletedProcess[str], str]:
+    edits: list[str] = []
+
+    def fake_run(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        gh_args = command[1:]
+        if gh_args[:2] == ["repo", "view"]:
+            return subprocess.CompletedProcess(command, 0, '{"nameWithOwner":"acme/widgets"}\n', "")
+        if gh_args[:2] == ["issue", "list"]:
+            if mode == "issue-list-failure":
+                return subprocess.CompletedProcess(command, 17, "", "fake stderr: issue-list")
+            return subprocess.CompletedProcess(command, 0, "[]\n", "")
+        if gh_args[:2] == ["issue", "view"]:
+            if mode == "issue-view-failure":
+                return subprocess.CompletedProcess(command, 17, "", "fake stderr: issue-view")
+            number = int(gh_args[2])
+            blocked = [{"number": 8}] if mode == "graph" and number == 7 else []
+            body = "existing graph" if mode in {"issue-list-failure", "issue-view-failure", "dependency-failure", "sub-issue-failure"} else ""
+            payload = {"number": number, "title": f"issue-{number}", "state": "open", "url": f"https://github.com/acme/widgets/issues/{number}", "body": body, "blockedBy": blocked, "blocking": []}
+            return subprocess.CompletedProcess(command, 0, json.dumps(payload), "")
+        if gh_args[:2] == ["issue", "edit"]:
+            edits.append("edit")
+            return subprocess.CompletedProcess(command, 0, "", "")
+        if gh_args[:1] == ["api"]:
+            endpoint = gh_args[1]
+            if endpoint.endswith("/sub_issues"):
+                if mode == "sub-issue-failure":
+                    return subprocess.CompletedProcess(command, 17, "", "fake stderr: sub-issues")
+                return subprocess.CompletedProcess(command, 0, json.dumps([{ "number": 8 }]) if mode == "graph" else "[]", "")
+            if "/dependencies/" in endpoint:
+                if mode in {"blocked-by-failure", "blocking-failure"} and endpoint.endswith("/" + ("blocked_by" if mode == "blocked-by-failure" else "blocking")):
+                    return subprocess.CompletedProcess(command, 17, "", "fake stderr: dependencies")
+                return subprocess.CompletedProcess(command, 0, "[]", "")
+        raise AssertionError(command)
+
+    output = io.StringIO()
+    errors = io.StringIO()
+    original = render_graph.subprocess.run
+    render_graph.subprocess.run = fake_run
+    try:
+        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(errors):
+            code = render_graph.main.__wrapped__() if hasattr(render_graph.main, "__wrapped__") else None
+            if code is None:
+                parser_args = list(args)
+                old_argv = sys.argv
+                sys.argv = [str(RENDERER), *parser_args]
+                try:
+                    code = render_graph.main()
+                finally:
+                    sys.argv = old_argv
+    finally:
+        render_graph.subprocess.run = original
+    return subprocess.CompletedProcess(args, code, output.getvalue(), errors.getvalue()), "\n".join(edits)
+
+
+def assert_query_failure(mode: str, stage: str) -> None:
+    result, edits = run_renderer(mode, "--issue", "7", "--write")
+    assert result.returncode != 0, (result.returncode, result.stdout, result.stderr)
+    assert stage in result.stderr
+    assert "fake stderr" in result.stderr
+    assert edits == ""
 
 
 def main() -> int:
@@ -23,6 +95,24 @@ def main() -> int:
     )
     assert drawn.startswith("flowchart TD")
     assert not drawn.startswith("---")
+
+    assert_query_failure("issue-list-failure", "Part-of search")
+    assert_query_failure("issue-view-failure", "issue view")
+    assert_query_failure("blocked-by-failure", "blocked_by dependencies")
+    assert_query_failure("blocking-failure", "blocking dependencies")
+    assert_query_failure("sub-issue-failure", "sub-issues")
+
+    empty, _ = run_renderer("empty", "--issue", "7")
+    assert empty.returncode == 0, empty.stderr
+    assert "nodes=[7]" in empty.stderr
+    assert "i7[" in empty.stdout
+
+    graph, _ = run_renderer("graph", "--issue", "7")
+    assert graph.returncode == 0, graph.stderr
+    assert 'i8["#8 issue-8"]' in graph.stdout
+    assert 'i8 --> i7' in graph.stdout
+    assert "repo=acme/widgets" in graph.stderr
+
     print("ok")
     return 0
 
