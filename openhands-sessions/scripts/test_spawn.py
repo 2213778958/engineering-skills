@@ -786,6 +786,16 @@ class ResumeTests(LedgerIsolatedTestCase):
 class NotifyIdentityTests(LedgerIsolatedTestCase):
     """Notify direction, related-request round-trip match, replay reconcile."""
 
+    def setUp(self) -> None:
+        super().setUp()
+        self.bind_target()
+        ledger = spawn.load_ledger(PARENT)
+        entry = ledger.pop("req-disp0")
+        entry["request_id"] = "req-not1"
+        entry["child_id"] = CHILD
+        ledger["req-not1"] = entry
+        spawn.save_ledger(PARENT, ledger)
+
     def child_window(self) -> dict:
         return {
             "id": CHILD,
@@ -810,7 +820,7 @@ class NotifyIdentityTests(LedgerIsolatedTestCase):
             timeout_sec=5400,
             force=False,
             ticket="",
-            request_id="req-not1",
+            request_id="req-report1",
             target_id="",
             related_request_id="",
         )
@@ -839,7 +849,7 @@ class NotifyIdentityTests(LedgerIsolatedTestCase):
                     CHILD,
                 )
         self.assertEqual(self.posts, [])
-        self.assertEqual(spawn.load_ledger(PARENT)["req-not1"]["status"], "rejected")
+        self.assertNotIn("req-report1", spawn.load_ledger(PARENT))
 
     def test_identical_replay_reconciles_without_second_post(self) -> None:
         convs = {PARENT: {"id": PARENT, "status": "running"}}
@@ -862,7 +872,7 @@ class NotifyIdentityTests(LedgerIsolatedTestCase):
                     self.notify_args(
                         prompt_file=self.prompt_file(
                             "report2.txt",
-                            "engineering:report\ndepartment: delivery\nticket: #41\nhop: blocked\n",
+                            "engineering:report\ndepartment: delivery\nticket: #41\nrequest: req-not1\nhop: blocked\n",
                         )
                     ),
                     self.child_window(),

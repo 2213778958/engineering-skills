@@ -912,23 +912,15 @@ def send_event(
         ctx: Receipt context (operation/request_id/ticket/department/...).
 
     Returns:
-        Final (payload, receipt, error) after payload-shape fallback.
+        The result of the single event POST. Explicit backend rejection is
+        terminal; ambiguous transport failure is reconciled by the ledger.
     """
-    payloads = event_payloads(text)
-    result = (None, make_receipt("rejected", **ctx, evidence="no attempt"), None)
-    for index, body in enumerate(payloads):
-        payload, receipt, err = poster(
-            "POST",
-            f"/api/conversations/{cid}/events",
-            body,
-            index == len(payloads) - 1,
-        )
-        result = (payload, receipt, err)
-        if err is None:
-            return result
-        if "HTTP 400" not in str(err) and "HTTP 422" not in str(err):
-            return result
-    return result
+    return poster(
+        "POST",
+        f"/api/conversations/{cid}/events",
+        event_payloads(text)[0],
+        True,
+    )
 
 
 def refuse_duplicate_from_ledger(
@@ -1221,11 +1213,8 @@ def run_dispatch(args: argparse.Namespace, parent: dict, this_id: str = "") -> N
             ),
         )
         raise err
-    cid = str(payload.get("id") or payload.get("conversation_id") or child_id)  # type: ignore[union-attr]
-    checked = ensure_child(cid, tags)
-    got = working_dir_of(checked)
-    if got != wd:
-        raise SystemExit(f"working_dir mismatch: got {got!r} want {wd!r}")
+    response = payload if isinstance(payload, dict) else {}
+    cid = str(response.get("id") or response.get("conversation_id") or child_id)
     record_ledger(
         this_id,
         request_id,
@@ -1245,20 +1234,12 @@ def run_dispatch(args: argparse.Namespace, parent: dict, this_id: str = "") -> N
         ),
     )
     report = {
-        "receipt": "accepted",
-        "operation": "dispatch",
-        "request_id": request_id,
-        "ticket": ticket,
-        "department": department,
-        "id": checked.get("id") or cid,
-        "conversation_id": checked.get("conversation_id") or checked.get("id") or cid,
+        **receipt,
+        "id": cid,
+        "conversation_id": cid,
         "url": f"{UI}/conversations/{cid}",
         "mode": "dispatch",
-        "working_dir": got,
-        "tags": checked.get("tags") if isinstance(checked.get("tags"), dict) else {},
-        "parent_conversation_id": checked.get("parent_conversation_id"),
-        "max_iterations": args.max_iterations,
-        "launched_agent_profile": checked.get("launched_agent_profile"),
+        "working_dir": wd,
         "this_id": this_id,
         "github_binding": binding_status(wants_binding),
         "evidence": receipt["evidence"],
@@ -1486,12 +1467,24 @@ def run_resume(args: argparse.Namespace, parent: dict, this_id: str = "") -> Non
             "as an authorized department child of this conversation; "
             "employee-layer bypass is refused"
         )
+    identity_mismatches = []
+    if str(binding.get("child_id") or "") != target_id:
+        identity_mismatches.append("target UUID")
+    if str(binding.get("parent_id") or "") != this_id:
+        identity_mismatches.append("parent UUID")
+    if str(binding.get("department") or "") != department:
+        identity_mismatches.append("department")
     if str(binding.get("ticket") or "") != ticket:
-        reject("resume ticket mismatches the bound dispatch request", department)
-        raise SystemExit(
-            f"ticket mismatch: dispatch was bound to {binding.get('ticket')!r}, "
-            f"resume asked for {ticket!r}"
+        identity_mismatches.append("ticket")
+    if norm_path(str(binding.get("working_dir") or "")) != norm_path(wd):
+        identity_mismatches.append("workspace")
+    if identity_mismatches:
+        evidence = (
+            "resume target identity differs from its dispatch binding: "
+            + ", ".join(identity_mismatches)
         )
+        reject(evidence, department)
+        raise SystemExit(evidence + "; fail-closed")
     if norm_path(working_dir_of(target) or "") != norm_path(wd):
         reject("resume target workspace differs from this conversation", department)
         raise SystemExit(
@@ -1627,51 +1620,36 @@ def run_notify(args: argparse.Namespace, parent: dict, this_id: str = "") -> Non
     request_id = (
         normalize_request_id(args.request_id) if args.request_id.strip() else str(uuid.uuid4())
     )
-    ticket = args.ticket.strip()
     report_digest = prompt_digest(text)
-    related = args.related_request_id.strip()
-    if related:
-        match = re.search(r"^\s*request:\s*(\S+)\s*$", text, re.M)
-        if match is None or match.group(1) != related:
-            ctx = {
-                "operation": "notify",
-                "request_id": request_id,
-                "ticket": ticket,
-                "department": str(
-                    (parent.get("tags") or {}).get("department", "")
-                    if isinstance(parent.get("tags"), dict)
-                    else ""
-                ),
-                "parent_id": str(parent_id),
-                "target_id": str(parent_id),
-            }
-            evidence = (
-                f"related-request-id {related} does not match the report "
-                "request line; stale/mismatched report rejected (no post)"
-            )
-            emit_receipt(make_receipt("rejected", evidence=evidence, **ctx))
-            record_ledger(
-                str(parent_id),
-                request_id,
-                ledger_entry(
-                    operation="notify",
-                    request_id=request_id,
-                    ticket=ticket,
-                    department=ctx["department"],
-                    parent_id=str(parent_id),
-                    status="rejected",
-                    evidence=evidence,
-                    target_id=str(parent_id),
-                    prompt_sha256=report_digest,
-                ),
-            )
-            raise SystemExit(
-                f"notify rejected as stale/mismatched: report must contain a "
-                f"`request: {related}` line equal to --related-request-id"
-            )
-    digest = prompt_digest(text)
+    request_match = re.search(r"^\s*request:\s*(\S+)\s*$", text, re.M)
+    report_request = request_match.group(1) if request_match else ""
+    ticket_match = re.search(r"^\s*ticket:\s*(#\d+)\s*$", text, re.M)
+    ticket = args.ticket.strip() or (ticket_match.group(1) if ticket_match else "")
+    related = args.related_request_id.strip() or report_request
     target_id = str(parent_id)
     ledger = load_ledger(target_id)
+    if not related or report_request != related:
+        raise SystemExit(
+            f"notify rejected as stale/mismatched: report must contain a "
+            f"`request: {related}` line equal to --related-request-id"
+        )
+    related_entry = ledger.get(related)
+    related_known = (
+        isinstance(related_entry, dict)
+        and related_entry.get("operation") in {"dispatch", "resume"}
+        and (
+            str(related_entry.get("child_id") or related_entry.get("target_id") or "")
+            == this_id
+        )
+        and str(related_entry.get("ticket") or "") == ticket
+        and str(related_entry.get("parent_id") or "") == target_id
+    )
+    if not related_known:
+        raise SystemExit(
+            f"notify rejected as stale/mismatched: related request {related!r} "
+            "is not a known dispatch/resume request for this child and ticket"
+        )
+    digest = report_digest
     own = ledger.get(request_id)
     ctx = {
         "operation": "notify",
@@ -1709,9 +1687,6 @@ def run_notify(args: argparse.Namespace, parent: dict, this_id: str = "") -> Non
                 )
             )
             raise SystemExit(1)
-    target = get_conversation(target_id)
-    if target is None:
-        raise SystemExit("notify parent GET failed")
     payload, receipt, err = send_event(
         target_id,
         text,
@@ -1749,8 +1724,6 @@ def run_notify(args: argparse.Namespace, parent: dict, this_id: str = "") -> Non
             ),
         )
         raise err
-    if status_of(target) in TERMINAL_STATES:
-        maybe_run(target_id)
     record_ledger(
         target_id,
         request_id,
@@ -1767,18 +1740,12 @@ def run_notify(args: argparse.Namespace, parent: dict, this_id: str = "") -> Non
             attempts=attempts,
         ),
     )
-    checked = get_conversation(target_id) or target
     report = {
-        "receipt": "accepted",
-        "operation": "notify",
-        "request_id": request_id,
-        "ticket": ticket,
-        "department": ctx["department"],
+        **receipt,
         "mode": "notify",
         "this_id": this_id,
-        "parent_id": checked.get("id") or target_id,
+        "parent_id": target_id,
         "url": f"{UI}/conversations/{target_id}",
-        "parent_status": status_of(checked),
         "posted": payload if isinstance(payload, dict) else True,
         "evidence": receipt["evidence"],
         "next_action": (
