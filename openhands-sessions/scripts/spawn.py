@@ -873,31 +873,26 @@ def updated_key(item: dict[str, Any]) -> str:
 REPORT_PREFIX = "engineering:report"
 
 
-def event_payloads(text: str) -> list[dict[str, Any]]:
-    """Build the accepted event payload shapes for one continuation/report.
+def event_payload(text: str) -> dict[str, Any]:
+    """Build the user-message event payload that persists the full text.
+
+    The kind-style ``MessageEvent`` form is also accepted by the API with a
+    2xx response, but the backend persists it with an empty ``content`` list
+    (#49), silently dropping the continuation. The role-style user message
+    is the form the backend demonstrably persists; ``run`` stays ``True`` so
+    the single event POST still triggers the run.
 
     Args:
         text: Report or continuation text.
 
     Returns:
-        MessageEvent first, plain user message as fallback.
+        Payload dict for ``POST /api/conversations/{id}/events``.
     """
-    return [
-        {
-            "kind": "MessageEvent",
-            "source": "user",
-            "llm_message": {
-                "role": "user",
-                "content": [{"type": "text", "text": text}],
-            },
-            "run": True,
-        },
-        {
-            "role": "user",
-            "content": [{"type": "text", "text": text}],
-            "run": True,
-        },
-    ]
+    return {
+        "role": "user",
+        "content": [{"type": "text", "text": text}],
+        "run": True,
+    }
 
 
 def send_event(
@@ -918,7 +913,7 @@ def send_event(
     return poster(
         "POST",
         f"/api/conversations/{cid}/events",
-        event_payloads(text)[0],
+        event_payload(text),
         True,
     )
 
