@@ -93,6 +93,8 @@ python <this-skill>/scripts/spawn.py --mode open --profile-id <uuid> --prompt-fi
 python <this-skill>/scripts/spawn.py --mode dispatch --profile-id <uuid> --prompt-file <txt> --max-iterations <n> --poll-sec 0
 ```
 
+For every open or dispatch command, set the terminal timeout to at least 200 seconds. A terminal soft timeout (`exit=-1`) is not a dispatch failure: first read the remaining output, and treat a receipt JSON containing `conversation_id` or `id` as success. If the result is uncertain, GET the child status before retrying. Re-dispatch only after confirming the original child is absent or in `error`; never retry an active or unknown child. Dispatch refuses an active same-parent, same-department child; use `--force` only when the duplicate is intentional.
+
 A department manage window that requires GitHub also passes both:
 ```
 --department <delivery|acceptance|arbitration|human> --github-token-secret <PROCESS.github-token-secret>

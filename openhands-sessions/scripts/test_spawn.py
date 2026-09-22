@@ -104,5 +104,167 @@ class GitHubBindingTests(unittest.TestCase):
         self.assertEqual(status, {"consumer": "GH_TOKEN", "status": "bound"})
         self.assertNotIn("session-key", output.getvalue())
         self.assertNotIn("GITHUB_PERSONAL_ACCESS_TOKEN", output.getvalue())
+
+    def test_conversation_creation_post_timeout_is_180_seconds(self) -> None:
+        source = MODULE_PATH.read_text(encoding="utf-8")
+        self.assertIn('"POST",\n        "/api/conversations",\n        body,\n        timeout=180,', source)
+
+    def test_duplicate_active_dispatch_is_rejected(self) -> None:
+        with patch.object(
+            spawn,
+            "search_items",
+            return_value=[
+                {
+                    "id": "existing",
+                    "parent_conversation_id": "parent",
+                    "status": "running",
+                    "tags": {"department": "delivery"},
+                }
+            ],
+        ), self.assertRaisesRegex(SystemExit, "existing"):
+            spawn.refuse_duplicate_dispatch(
+                "parent", {"department": "delivery"}
+            )
+
+    def test_duplicate_dispatch_force_is_allowed(self) -> None:
+        with patch.object(spawn, "search_items") as search:
+            spawn.refuse_duplicate_dispatch(
+                "parent", {"department": "delivery"}, force=True
+            )
+        search.assert_not_called()
+
+    def test_duplicate_guard_ignores_other_parent_department_and_terminal(self) -> None:
+        with patch.object(
+            spawn,
+            "search_items",
+            return_value=[
+                {
+                    "id": "other-parent",
+                    "parent_conversation_id": "other",
+                    "status": "running",
+                    "tags": {"department": "delivery"},
+                },
+                {
+                    "id": "other-department",
+                    "parent_conversation_id": "parent",
+                    "status": "running",
+                    "tags": {"department": "acceptance"},
+                },
+                {
+                    "id": "finished",
+                    "parent_conversation_id": "parent",
+                    "status": "finished",
+                    "tags": {"department": "delivery"},
+                },
+            ],
+        ):
+            spawn.refuse_duplicate_dispatch("parent", {"department": "delivery"})
+
+    def test_search_items_fails_closed_on_uncertain_payload(self) -> None:
+        for payload in ({}, {"items": ["not-an-item"]}):
+            with self.subTest(payload=payload), patch.object(
+                spawn, "api", return_value=payload
+            ), self.assertRaisesRegex(SystemExit, "invalid"):
+                spawn.search_items()
+
+    def test_search_items_reads_all_pages(self) -> None:
+        pages = [
+            {"items": [{"id": "first"}], "has_more": True},
+            {"items": [{"id": "second"}], "has_more": False},
+        ]
+        with patch.object(spawn, "api", side_effect=pages) as api:
+            self.assertEqual(
+                [item["id"] for item in spawn.search_items()], ["first", "second"]
+            )
+        self.assertIn("offset=1", api.call_args_list[1].args[1])
+
+    def test_search_items_follows_cursor_pages(self) -> None:
+        with patch.object(
+            spawn,
+            "api",
+            side_effect=[
+                {"items": [{"id": "first"}], "next_cursor": "next"},
+                {"items": [{"id": "second"}]},
+            ],
+        ) as api:
+            self.assertEqual(
+                [item["id"] for item in spawn.search_items()], ["first", "second"]
+            )
+        self.assertIn("cursor=next", api.call_args_list[1].args[1])
+
+    def test_search_items_follows_page_id_pages_without_offset_progression(self) -> None:
+        with patch.object(
+            spawn,
+            "api",
+            side_effect=[
+                {"items": [{"id": "first"}], "next_page_id": "page-2"},
+                {"items": [{"id": "second"}]},
+            ],
+        ) as api:
+            self.assertEqual(
+                [item["id"] for item in spawn.search_items()], ["first", "second"]
+            )
+        self.assertIn("page_id=page-2", api.call_args_list[1].args[1])
+        self.assertIn("offset=0", api.call_args_list[1].args[1])
+
+    def test_search_items_rejects_repeated_page_id(self) -> None:
+        with patch.object(
+            spawn,
+            "api",
+            side_effect=[
+                {"items": [{"id": "first"}], "next_page_id": "same"},
+                {"items": [{"id": "second"}], "next_page_id": "same"},
+            ],
+        ), self.assertRaisesRegex(SystemExit, "next page id"):
+            spawn.search_items()
+
+    def test_search_items_rejects_repeated_page(self) -> None:
+        page = {"items": [{"id": "same"}], "has_more": True}
+        with patch.object(spawn, "api", side_effect=[page, page]), self.assertRaisesRegex(
+            SystemExit, "repeated page"
+        ):
+            spawn.search_items()
+
+
+    def test_search_items_rejects_repeated_cursor(self) -> None:
+        with patch.object(
+            spawn, "api", return_value={"items": [], "next_cursor": "same"}
+        ), self.assertRaisesRegex(SystemExit, "next cursor"):
+            spawn.search_items()
+
+    def test_search_items_rejects_cursor_cycle(self) -> None:
+        with patch.object(
+            spawn,
+            "api",
+            side_effect=[
+                {"items": [], "next_cursor": "a"},
+                {"items": [], "next_cursor": "b"},
+                {"items": [], "next_cursor": "a"},
+            ],
+        ) as api, self.assertRaisesRegex(SystemExit, "next cursor"):
+            spawn.search_items()
+        self.assertEqual(api.call_count, 3)
+
+    def test_dispatch_child_id_is_stable_reservation_key(self) -> None:
+        first = spawn.dispatch_child_id("parent", "delivery")
+        self.assertEqual(first, spawn.dispatch_child_id("parent", "delivery"))
+        self.assertNotEqual(first, spawn.dispatch_child_id("parent", "acceptance"))
+        self.assertRegex(first, r"^[0-9a-f-]{36}$")
+
+
+    def test_skill_documents_soft_timeout_and_duplicate_contract(self) -> None:
+        skill = (MODULE_PATH.parent.parent / "SKILL.md").read_text(encoding="utf-8")
+        for text in (
+            "terminal timeout to at least 200 seconds",
+            "terminal soft timeout (`exit=-1`) is not a dispatch failure",
+            "receipt JSON containing `conversation_id` or `id` as success",
+            "GET the child status before retrying",
+            "never retry an active or unknown child",
+            "use `--force` only when the duplicate is intentional",
+        ):
+            with self.subTest(text=text):
+                self.assertIn(text, skill)
+
+
 if __name__ == "__main__":
     unittest.main()
