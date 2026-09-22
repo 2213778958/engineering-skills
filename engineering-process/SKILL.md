@@ -68,6 +68,8 @@ Planning is a **department**, not a layer above departments. Other departments t
 17. **`MODELS` latch.** Planning session start (Entry): print `docs/agents/MODELS.md` with the PROCESS fields; wait for confirm. Later turns: print the table; do not wait unless `confirmed:` is not `yes`. User confirms → `confirmed: yes`. User changes a cell → write and `confirmed: yes`. Follow the **targets**. Format is the n×m grid in models-stub (department × manage/implement/review/verify). Employee cells: use that cell's target; ignore a `dispatch` link. Planning manage cell: `stay`. Other department manage cells: `dispatch` + spawnable profile; 分发 uses that target. File has `supervisor` and no `planning` → treat that as planning manage `stay`. Missing other-department manage cell → 分发 uses this conversation's spawnable profile. Do not refill the table unless the user changes a cell. Other departments: do not ask; follow targets.
 18. **Employees (forced).** Roles `planning implement` / `planning review` / `delivery implement` / `delivery review` / `delivery verify` / `acceptance implement` / `acceptance review` / `acceptance verify` / `arbitration implement` / `arbitration review` / `arbitration verify` / `datasheet extract` = **delegate**, and only from the matching **department manage**. MODELS says `dispatch` on those cells → ignore; still delegate. No Task → fail; do not spawn an employee conversation. Wait until each receipt is in this conversation. Background Task → **fail**. Receipt missing → **fail**; do not finish. Manage must not do that work in the window.
 
+19. **Same-ticket department continuation.** The next hop is a department already dispatched for this ticket (typical after arbitration sends the ticket back) → resume the original department manage conversation: sessions `spawn.py --mode resume` with `--target-id` (the exact child id recorded at 分发) + `--ticket` + `--request-id` (stable request identity). Do not `--mode dispatch` and do not `--mode open` a new window for that ticket + department. Do not infer the target from an old conversation id. Do not resume or reuse an employee conversation; the target is the department **manage** window. Receipts, reconciliation, and preservation: templates.md **Department resume**. Review findings still return to the original implement employee per templates.md **Review disposition**; that flow is separate.
+
 ## Key points
 
 Manage windows must not: edit product files, run patch, merge heads, open PDFs, paste datasheets / all three graphs / other modules' source, open an employee conversation window, `GET` child-session events, change contains/uses, clone the origin repo, `gh` the origin repo. Touching product paths in the editor / whole-repo format → **fail**.
@@ -210,7 +212,7 @@ Suggested edits: <ticket list or none>
 Hand to: planning
 ```
 
-`Verdict: review-wrong` and the implement ticket still open → write tree `template: delivery` and `issue:` that implement (suggested next 分发 delivery). Other verdicts → write tree `issue: none` (suggested next 决策). Notify. Stop.
+`Verdict: review-wrong` and the implement ticket still open → write tree `template: delivery` and `issue:` that implement (suggested next 分发 delivery; same ticket and that department already dispatched → resume per rule 19 / templates.md **Department resume**, not a new dispatch). Other verdicts → write tree `issue: none` (suggested next 决策). Notify. Stop.
 
 ### 3c. `planning` (planning **manage** 决策)
 

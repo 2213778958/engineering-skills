@@ -89,6 +89,23 @@ Follow this canonical transition table. Every transition preserves `prior-work`:
 
 A malformed disposition or findings without all four fields are incomplete receipts. Do not staff verify, push, close, or notify until corrected. Arbitration receives only the finding blocks selected by the table's arbitration scope, the disposition when one exists, relevant implementation/review receipts, and preserved accepted fixes; it does not reconsider accepted independent findings.
 
+## Department resume (same-ticket continuation)
+
+Same-ticket continuation = the next hop is a department that already has a dispatch child for this ticket (typical after arbitration sends the ticket back, or after a human send-back reopens the implement ticket). That continuation **resumes the original department manage conversation**. It is not a new 分发 and does not create a window.
+
+Planning manage resumes via sessions only:
+
+```
+python <sessions-skill>/scripts/spawn.py --mode resume --target-id <uuid> --ticket #<n> --request-id <id>
+```
+
+- `--target-id` is the exact conversation id recorded at 分发 (dispatch report `id` / `url`). Never infer the continuation target from an old conversation id found elsewhere. `--ticket` + `--request-id` carry the stable request identity; when reconciling one intentional continuation, reuse the same `--request-id`.
+- Do not `--mode dispatch` and do not `--mode open` the same department on the same ticket again; redispatch or a new department window → **fail**. The resume target is the department **manage** window (the dispatch child carrying that department tag), never an implement / review / verify subagent. Employees are Task delegate and have no conversation window to resume; resuming or reusing an employee conversation for department continuation → **fail**.
+- Receipts: `accepted` = the continuation operation was accepted only, not department work completion; do not finish the hop, do not watch. `unknown` = unproven (timeout or lost response): reconcile with the same `--ticket` + `--request-id`; a timeout or lost response is unknown-until-reconciled, not a retry trigger — no blind retry, no redispatch on timeout. `rejected` = stop with the receipt evidence; no automatic replacement dispatch and no force bypass.
+- Preserve commits, accepted fixes, existing history, and valid receipts across the resume. Rerun only the hops the arbitration verdict invalidated (the disputed scope); do not re-run accepted independent findings or already verified hops.
+- Reporting stays child → parent: the resumed department manage still finishes the hop with sessions `spawn.py --mode notify`. Callers use spawn.py only; never copied raw HTTP calls.
+- This resume does not implement the **Review disposition** flow above. Disposition keeps returning review findings to the original implement employee inside that delivery window; resume only continues the department window. Keep both intact; do not conflate them.
+
 ## Key points: what each hop does
 
 Follow the **职责表**. Hop `template` = that department's **manage** window.
@@ -142,6 +159,8 @@ Tree already has `issue:` = this open ticket and `template:` is a department hop
 | acceptance ticket `ready-for-agent` (has `engineering:pr`) and unblocked | `acceptance` | **分发** acceptance department |
 | `ready-for-human` | `human` | **分发** human department |
 | disputed review finding after disposition/rework, explicit contract/upstream challenge, or user challenge | `arbitration` | **分发** arbitration department |
+
+Same ticket and the target department already has a dispatch child → that is a continuation, not a new 分发: **Department resume** above.
 
 ## Test intensity
 
