@@ -265,18 +265,134 @@ def status_of(payload: object) -> str:
 
 
 def search_items(status: str | None = None) -> list[dict[str, Any]]:
-    params: dict[str, str] = {"limit": "100"}
-    if status:
-        params["status"] = status
-    payload = api("GET", f"/api/conversations/search?{urlencode(params)}")
-    if not isinstance(payload, dict):
-        return []
-    items = payload.get("items") or []
-    return [x for x in items if isinstance(x, dict)]
+    """Read every page of conversations matching an optional status.
+
+    Args:
+        status: Optional server-side execution status filter.
+
+    Returns:
+        All conversation records returned by the paginated search.
+    """
+    limit = 100
+    offset = 0
+    cursor: str | None = None
+    page_id: str | None = None
+    seen_cursors: set[str] = set()
+    seen_page_ids: set[str] = set()
+    seen_pages: set[str] = set()
+    items: list[dict[str, Any]] = []
+    while True:
+        params: dict[str, str] = {"limit": str(limit), "offset": str(offset)}
+        if status:
+            params["status"] = status
+        if cursor:
+            params["cursor"] = cursor
+        if page_id:
+            params["page_id"] = page_id
+        payload = api("GET", f"/api/conversations/search?{urlencode(params)}")
+        if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
+            raise SystemExit("conversation search returned an invalid payload")
+        page = payload["items"]
+        if any(not isinstance(item, dict) for item in page):
+            raise SystemExit("conversation search returned an invalid item")
+
+        next_page_id = payload.get("next_page_id")
+        if next_page_id is not None and (
+            not isinstance(next_page_id, str)
+            or not next_page_id
+            or next_page_id in seen_page_ids
+        ):
+            raise SystemExit("conversation search returned an invalid next page id")
+        next_cursor = payload.get("next_cursor")
+        if next_page_id is None and next_cursor is not None and (
+            not isinstance(next_cursor, str)
+            or not next_cursor
+            or next_cursor in seen_cursors
+        ):
+            raise SystemExit("conversation search returned an invalid next cursor")
+
+        page_fingerprint = json.dumps(page, sort_keys=True, separators=(",", ":"))
+        if page and page_fingerprint in seen_pages:
+            raise SystemExit("conversation search returned a repeated page")
+        if page:
+            seen_pages.add(page_fingerprint)
+        items.extend(page)
+
+        if next_page_id is not None:
+            seen_page_ids.add(next_page_id)
+            page_id = next_page_id
+            cursor = None
+            continue
+        if next_cursor is not None:
+            seen_cursors.add(next_cursor)
+            cursor = next_cursor
+            page_id = None
+            continue
+        has_more = payload.get("has_more") is True
+        total = payload.get("total")
+        if isinstance(total, int):
+            has_more = has_more or len(items) < total
+        if not has_more and len(page) < limit:
+            return items
+        if not page:
+            raise SystemExit("conversation search pagination made no progress")
+        offset += len(page)
 
 
 def search_running() -> list[dict[str, Any]]:
     return search_items("running")
+
+
+def dispatch_child_id(parent_id: str, department: str) -> str:
+    """Return the server uniqueness key for a non-forced dispatch reservation.
+
+    Args:
+        parent_id: Planning conversation that owns the dispatch.
+        department: Authorized destination department.
+
+    Returns:
+        Stable UUID shared by concurrent retries of this dispatch.
+    """
+    return str(
+        uuid.uuid5(
+            uuid.NAMESPACE_URL, f"agentcanvas-dispatch:{parent_id}:{department}"
+        )
+    )
+
+
+def refuse_duplicate_dispatch(
+    parent_id: str, tags: dict[str, str], force: bool = False
+) -> None:
+    """Reject a duplicate active department child for the same parent.
+
+    Args:
+        parent_id: Planning conversation that owns the dispatch.
+        tags: Child tags, including the department when available.
+        force: Explicitly bypass the duplicate guard.
+    """
+    if force:
+        return
+    department = tags.get("department", "")
+    if not department:
+        return
+    terminal = {"finished", "error", "stopped"}
+    duplicates = []
+    for item in search_items():
+        if str(item.get("parent_conversation_id") or "") != parent_id:
+            continue
+        item_tags = item.get("tags") if isinstance(item.get("tags"), dict) else {}
+        if str(item_tags.get("department") or "") != department:
+            continue
+        if status_of(item) not in terminal:
+            duplicates.append(item)
+    if duplicates:
+        details = ", ".join(
+            f"{item.get('id')} ({UI}/conversations/{item.get('id')})"
+            for item in duplicates
+        )
+        raise SystemExit(
+            f"active {department} dispatch already exists: {details}; use --force to bypass"
+        )
 
 
 def imported_from_cwd(cwd: Path) -> Path | None:
@@ -436,6 +552,9 @@ def main() -> None:
     parser.add_argument("--max-iterations", type=int, default=500)
     parser.add_argument("--poll-sec", type=int, default=0)
     parser.add_argument("--timeout-sec", type=int, default=5400)
+    parser.add_argument(
+        "--force", action="store_true", help="allow an active duplicate dispatch"
+    )
     args = parser.parse_args()
 
     this_id = resolve_this(args.this_id.strip() or None)
@@ -514,8 +633,14 @@ def main() -> None:
         secrets = github_binding(args.github_token_secret, key)
         prompt = bound_department_prompt(prompt)
 
-    child_id = str(uuid.uuid4())
     tags = canvas_tags(parent)
+    child_id = str(uuid.uuid4())
+    if args.department:
+        tags["department"] = args.department
+        if args.mode == "dispatch":
+            refuse_duplicate_dispatch(this_id, tags, args.force)
+            if not args.force:
+                child_id = dispatch_child_id(this_id, args.department)
     if wants_binding:
         tags["githubbinding"] = "gh-token-bound"
     body = conversation_body(
@@ -533,7 +658,7 @@ def main() -> None:
         "POST",
         "/api/conversations",
         body,
-        timeout=120,
+        timeout=180,
         redact_error=wants_binding,
     )
     if not isinstance(created, dict):
