@@ -34,5 +34,5 @@ Public APIs must have doc comments. Do not restate the next line. Do not write l
 
 ## Build
 
-- Command: `python engineering-init/scripts/test_render_graph_refs.py && python openhands-watch/scripts/test_watch.py`
+- Command: `python engineering-init/scripts/verify.py`
 - Do not commit products

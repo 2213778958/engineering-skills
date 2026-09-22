@@ -16,7 +16,7 @@
 
 | Department | manage | implement | review | verify |
 |---|---|---|---|---|
-| **planning** | talk to the user; this conversation has not confirmed yet (not 回传): write missing `until: none`, print `mode` / `until` / `merge` / `verify` / `accept` + MODELS, wait for confirm, then 推进; 分发 other departments; staff this department's employees; collect receipts; after 分发 stop; after 回传 / 决策 receipts follow **Stop** tables | 决策 technical: `engineering-init` **patch**, apply verdict, pause/resume, open bug tickets, comment pull again; rewrite spec `engineering:graph` when tickets or edges change; create the ticket tree before 分发 | review the planning implement output and the spec flow graph if edges changed | — |
+| **planning** | talk to the user; this conversation has not confirmed yet (not 回传): write missing `until: none`, print `mode` / `until` / `merge` / `verify` / `accept` + MODELS, wait for confirm, then 推进; 分发 other departments; staff this department's employees; collect receipts; after 分发 stop; after 回传 / 决策 receipts follow **Stop** tables | 决策 technical: `engineering-init` **patch**, apply verdict, pause/resume, open bug tickets, comment pull again; create the ticket tree before 分发 | review the planning implement output | — |
 | **delivery** | staff employees; after receipts `git push` and close this implement ticket; sessions **notify** | product code + `git commit` (no push) | review the implementation | run `verify:` |
 | **acceptance** | staff employees; after receipts `gh pr` / honor `merge:`; close this acceptance; sessions **notify** | merge `engineering:heads`: create `merge/<n>` if needed, merge heads, worktree add/remove per worktree.md | review merge / PR scope | run `accept:` (`none` may still open a PR) |
 | **arbitration** | staff employees; after receipts write the verdict comment; sessions **notify** (next hop is 决策) | reproduce + opinion; no product-code edits | review the opinion | run `verify:`; check whether reproduction holds |
@@ -33,7 +33,7 @@
 - Unblock = close upstream tickets. Do not unblock with `remove-blocked-by`.
 - worktrees: `planning` implement creates them before 分发; `acceptance` implement removes after merge. Both semi-auto and full-auto. Under the Canvas container `worktree/`. See [worktree.md](worktree.md). Do not POST `worktree: true`. Do not POST a tree path as `working_dir`.
 - After a 分发 → **stop**. Do not watch. After 回传 / 决策 receipts → **Stop** tables. After a **close**: first a ticket that close unblocked (`human` then acceptance); none → hop table. Same class → smallest issue number.
-- This department **manage** closes or reopens a graph ticket → run `python <engineering-init>/scripts/render_graph.py --issue <spec> --write` (spec = `Part of #<n>`). Do not change contains / uses. Human review fail: only the **human** department reopens the implement ticket (3a).
+- Close or reopen actions write no graph. Ticket order comes from GitHub-native relationships only (`blockedBy` + open sub-issue parent blocks its children). Human review fail: only the **human** department reopens the implement ticket (3a).
 - Parallel = another 分发 (another 推进 on the planning department) or another planning department window. Not two tickets in one tree `PROCESS.md`.
 - Do not 分发 downstream while upstream still blocks. Named tickets neither.
 
@@ -197,4 +197,4 @@ Only this **current acceptance ticket**'s `engineering:heads` (≤4). One-shot i
 3. Leave-one-out: for each h, merge "all except h" onto the default branch. Merge fails → h is accused. `accept:` turns green → dropping h fixes it; h is accused.
 4. Accused still empty → merge one at a time. Single fail → accused. Every single passes, all together fail → **integration issue**: do not auto-reopen; stop; give the table to the person/planning.
 5. Accused nonempty and not pure integration → reopen the accused. feat → reopen that implement (and that line's closed gates). `merge/<child-acceptance>` → **run this section on that child acceptance**; do not reopen every implement from the top.
-6. Write the isolation table as a comment on the current acceptance. `issue: none`. Run `python <engineering-init>/scripts/render_graph.py --issue <spec> --write`. Stop. Report to planning.
+6. Write the isolation table as a comment on the current acceptance. `issue: none`. Stop. Report to planning.

@@ -1,6 +1,6 @@
 # Architecture
 
-Two graphs, separate from the flow graph. Node names = module list. Do not draw tickets / human gates / sinks here.
+Two graphs. Node names = module list. Do not draw tickets / human gates / sinks here.
 
 C/C++: no-layer or simple-layers → uses follows the confirmed three-layer edges. High-abstraction → three relationships (functional ownership, compile-time `#include`, runtime); legal edges in [firmware-layers.md](firmware-layers.md). Adapter `.c` including a component header = implementing PortOps, not a cycle. Handle is not a uses node. Layer directory names follow this repo; node names below are examples.
 
