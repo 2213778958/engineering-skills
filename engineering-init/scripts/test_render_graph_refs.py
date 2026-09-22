@@ -39,7 +39,8 @@ def run_renderer(mode: str, *args: str) -> tuple[subprocess.CompletedProcess[str
             number = int(gh_args[2])
             blocked = [{"number": 8}] if mode == "graph" and number == 7 else []
             body = "existing graph" if mode in {"issue-list-failure", "issue-view-failure", "dependency-failure", "sub-issue-failure"} else ""
-            payload = {"number": number, "title": f"issue-{number}", "state": "open", "url": f"https://github.com/acme/widgets/issues/{number}", "body": body, "blockedBy": blocked, "blocking": []}
+            state = "closed" if mode == "sub-issue-graph" and number == 46 else "open"
+            payload = {"number": number, "title": f"issue-{number}", "state": state, "url": f"https://github.com/acme/widgets/issues/{number}", "body": body, "blockedBy": blocked, "blocking": []}
             return subprocess.CompletedProcess(command, 0, json.dumps(payload), "")
         if gh_args[:2] == ["issue", "edit"]:
             edits.append("edit")
@@ -49,7 +50,13 @@ def run_renderer(mode: str, *args: str) -> tuple[subprocess.CompletedProcess[str
             if endpoint.endswith("/sub_issues"):
                 if mode == "sub-issue-failure":
                     return subprocess.CompletedProcess(command, 17, "", "fake stderr: sub-issues")
-                return subprocess.CompletedProcess(command, 0, json.dumps([{ "number": 8 }]) if mode == "graph" else "[]", "")
+                if mode == "graph":
+                    data = [{"number": 8}]
+                elif mode == "sub-issue-graph" and endpoint.endswith("/issues/41/sub_issues"):
+                    data = [{"number": 46}]
+                else:
+                    data = []
+                return subprocess.CompletedProcess(command, 0, json.dumps(data), "")
             if "/dependencies/" in endpoint:
                 if mode in {"blocked-by-failure", "blocking-failure"} and endpoint.endswith("/" + ("blocked_by" if mode == "blocked-by-failure" else "blocking")):
                     return subprocess.CompletedProcess(command, 17, "", "fake stderr: dependencies")
@@ -95,6 +102,12 @@ def main() -> int:
     )
     assert drawn.startswith("flowchart TD")
     assert not drawn.startswith("---")
+
+    sub_graph, _ = run_renderer("sub-issue-graph", "--issue", "41")
+    assert sub_graph.returncode == 0, sub_graph.stderr
+    assert 'i46["#46 issue-46"]:::closed' in sub_graph.stdout
+    assert "i41 -.-> i46" in sub_graph.stdout
+    assert 'click i46 href "https://github.com/acme/widgets/issues/46" _blank' in sub_graph.stdout
 
     assert_query_failure("issue-list-failure", "Part-of search")
     assert_query_failure("issue-view-failure", "issue view")
