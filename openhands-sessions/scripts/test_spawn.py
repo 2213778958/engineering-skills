@@ -1,10 +1,30 @@
-﻿"""Tests for secure department GitHub credential binding."""
+﻿"""Tests for secure department GitHub credential binding.
+
+Fixture justification: patching ``spawn.api`` / ``spawn.search_items`` /
+``spawn.urlopen`` follows the established in-repo fixture pattern so tests
+drive real adapter code paths deterministically without network access.
+The dispatch ledger is redirected to a temp directory via the
+``OPENHANDS_DISPATCH_LEDGER_DIR`` override so tests never touch the real
+user ledger. One timeout test uses a local controlled HTTP fixture on
+127.0.0.1 with an ephemeral port because timeout classification is a
+socket-level behavior that cannot be observed through a patched ``api``.
+"""
 from __future__ import annotations
+import argparse
+import http.server
 import importlib.util
 import io
 import json
+import os
+import re
+import shutil
+import socketserver
+import subprocess
 import sys
+import tempfile
+import threading
 import unittest
+import urllib.request
 from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
@@ -107,7 +127,18 @@ class GitHubBindingTests(unittest.TestCase):
 
     def test_conversation_creation_post_timeout_is_180_seconds(self) -> None:
         source = MODULE_PATH.read_text(encoding="utf-8")
-        self.assertIn('"POST",\n        "/api/conversations",\n        body,\n        timeout=180,', source)
+        self.assertIn(
+            '"POST",\n        "/api/conversations",\n        body,\n        timeout=180,',
+            source,
+        )
+
+    def test_dispatch_get_child_uses_180_second_timeout(self) -> None:
+        source = MODULE_PATH.read_text(encoding="utf-8")
+        pattern = re.compile(
+            r"checked = get_conversation\(cid, timeout=180\)\n.{0,120}?if checked is None",
+            re.DOTALL,
+        )
+        self.assertIsNotNone(pattern.search(source))
 
     def test_duplicate_active_dispatch_is_rejected(self) -> None:
         with patch.object(
@@ -245,11 +276,25 @@ class GitHubBindingTests(unittest.TestCase):
             spawn.search_items()
         self.assertEqual(api.call_count, 3)
 
-    def test_dispatch_child_id_is_stable_reservation_key(self) -> None:
-        first = spawn.dispatch_child_id("parent", "delivery")
-        self.assertEqual(first, spawn.dispatch_child_id("parent", "delivery"))
-        self.assertNotEqual(first, spawn.dispatch_child_id("parent", "acceptance"))
+    def test_dispatch_request_identity_scopes_ticket_and_request(self) -> None:
+        """Updated for #41: the old parent+department-only key aliased requests."""
+        base = ("parent", "delivery", "#41", "req-1")
+        first = spawn.dispatch_request_child_id(*base)
+        self.assertEqual(first, spawn.dispatch_request_child_id(*base))
+        self.assertNotEqual(
+            first, spawn.dispatch_request_child_id("parent", "delivery", "#42", "req-1")
+        )
+        self.assertNotEqual(
+            first, spawn.dispatch_request_child_id("parent", "delivery", "#41", "req-2")
+        )
+        self.assertNotEqual(
+            first, spawn.dispatch_request_child_id("parent", "acceptance", "#41", "req-1")
+        )
         self.assertRegex(first, r"^[0-9a-f-]{36}$")
+        self.assertEqual(
+            spawn.request_identity(*base),
+            "dispatch:parent:delivery:#41:req-1",
+        )
 
 
     def test_skill_documents_soft_timeout_and_duplicate_contract(self) -> None:
@@ -264,6 +309,873 @@ class GitHubBindingTests(unittest.TestCase):
         ):
             with self.subTest(text=text):
                 self.assertIn(text, skill)
+
+
+PARENT = "11111111-1111-4111-8111-111111111111"
+CHILD = "22222222-2222-4222-8222-222222222222"
+OTHER = "33333333-3333-4333-8333-333333333333"
+TARGET = "44444444-4444-4444-8444-444444444444"
+PROFILE = "12345678-1234-5678-1234-567812345678"
+REAL_URLOPEN = urllib.request.urlopen
+
+
+def api_recorder(convs: dict, posts: list):
+    """Drive real adapter code paths through a controlled in-memory backend."""
+
+    def record(method, path, body=None, timeout=60, redact_error=False):
+        if path.startswith("/api/conversations/search"):
+            return {"items": []}
+        if method == "POST" and path == "/api/conversations":
+            posts.append(path)
+            return dict(convs.get("__create__", {"id": CHILD, "conversation_id": ""}))
+        if method == "POST" and (path.endswith("/events") or path.endswith("/run")):
+            posts.append(path)
+            return {}
+        if method == "GET" and path.startswith("/api/conversations/"):
+            cid = path.rsplit("/", 1)[-1]
+            if cid in convs:
+                return convs[cid]
+            raise SystemExit(f"HTTP 404 GET {path}: not found")
+        return {}
+
+    return record
+
+
+class LedgerIsolatedTestCase(unittest.TestCase):
+    """Redirect the dispatch ledger and workspace to temp dirs per test."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.mkdtemp(prefix="spawn41-")
+        self.prev_ledger_dir = os.environ.get("OPENHANDS_DISPATCH_LEDGER_DIR")
+        os.environ["OPENHANDS_DISPATCH_LEDGER_DIR"] = os.path.join(self.tmp, "ledger")
+        self.wd = os.path.join(self.tmp, "proj")
+        os.makedirs(self.wd, exist_ok=True)
+        self.posts: list = []
+
+    def tearDown(self) -> None:
+        if self.prev_ledger_dir is None:
+            os.environ.pop("OPENHANDS_DISPATCH_LEDGER_DIR", None)
+        else:
+            os.environ["OPENHANDS_DISPATCH_LEDGER_DIR"] = self.prev_ledger_dir
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def prompt_file(self, name: str, content: str) -> str:
+        path = os.path.join(self.tmp, name)
+        with open(path, "w", encoding="utf-8") as fh:
+            fh.write(content)
+        return path
+
+    def parent_conv(self, **over):
+        conv = {
+            "id": PARENT,
+            "workspace": {"kind": "LocalWorkspace", "working_dir": self.wd},
+            "tags": {"clientsource": "agentcanvas"},
+            "parent_conversation_id": None,
+        }
+        conv.update(over)
+        return conv
+
+    def child_conv(self, cid: str = CHILD, status: str = "running", **over):
+        conv = {
+            "id": cid,
+            "conversation_id": "",
+            "workspace": {"kind": "LocalWorkspace", "working_dir": self.wd},
+            "tags": {"clientsource": "agentcanvas", "department": "delivery"},
+            "parent_conversation_id": PARENT,
+            "status": status,
+        }
+        conv.update(over)
+        return conv
+
+    def dispatch_args(self, **over):
+        base = dict(
+            mode="dispatch",
+            this_id="",
+            profile_id=PROFILE,
+            department="delivery",
+            github_token_secret="",
+            prompt_file=self.prompt_file(
+                "task.txt", "continue ticket #41 delivery work"
+            ),
+            max_iterations=500,
+            poll_sec=0,
+            timeout_sec=5400,
+            force=False,
+            ticket="#41",
+            request_id="req-aaa1",
+            target_id="",
+            related_request_id="",
+        )
+        base.update(over)
+        return argparse.Namespace(**base)
+
+    def resume_args(self, **over):
+        base = dict(
+            mode="resume",
+            this_id="",
+            profile_id="",
+            department="",
+            github_token_secret="",
+            prompt_file=self.prompt_file("resume.txt", "resume: continue hop 2"),
+            max_iterations=500,
+            poll_sec=0,
+            timeout_sec=5400,
+            force=False,
+            ticket="#41",
+            request_id="req-res1",
+            target_id=TARGET,
+            related_request_id="",
+        )
+        base.update(over)
+        return argparse.Namespace(**base)
+
+    def bind_target(self, status: str = "accepted", ticket: str = "#41") -> None:
+        spawn.record_ledger(
+            PARENT,
+            "req-disp0",
+            spawn.ledger_entry(
+                operation="dispatch",
+                request_id="req-disp0",
+                ticket=ticket,
+                department="delivery",
+                parent_id=PARENT,
+                status=status,
+                evidence="prior accepted dispatch",
+                child_id=TARGET,
+                prompt_sha256=spawn.prompt_digest("prior"),
+                profile_id=PROFILE,
+                working_dir=self.wd,
+            ),
+        )
+
+    def output_of(self, fn, *args) -> str:
+        out = io.StringIO()
+        with redirect_stdout(out):
+            fn(*args)
+        return out.getvalue()
+
+
+class ProfileIdentityTests(LedgerIsolatedTestCase):
+    """--profile-id is the Agent Canvas profile UUID, never a display name."""
+
+    def test_name_shaped_profile_id_is_rejected_with_catalog_hint(self) -> None:
+        with self.assertRaisesRegex(SystemExit, "agent-profiles"):
+            spawn.validate_profile_id("deepseek-max")
+        with self.assertRaisesRegex(SystemExit, "UUID"):
+            spawn.validate_profile_id("DeepSeek Max (high)")
+
+    def test_uuid_profile_id_is_accepted(self) -> None:
+        self.assertEqual(spawn.validate_profile_id(PROFILE), PROFILE)
+        self.assertEqual(
+            spawn.validate_profile_id(PROFILE.upper()), PROFILE.upper()
+        )
+
+    def test_name_profile_fails_closed_before_any_post(self) -> None:
+        with patch.object(
+            spawn,
+            "api",
+            side_effect=api_recorder({}, self.posts),
+        ), self.assertRaisesRegex(SystemExit, "agent-profiles"):
+            spawn.run_dispatch(
+                self.dispatch_args(profile_id="deepseek-max"),
+                self.parent_conv(),
+                PARENT,
+            )
+        self.assertEqual(self.posts, [])
+
+    def test_ticket_and_request_id_are_validated(self) -> None:
+        with self.assertRaisesRegex(SystemExit, "--ticket"):
+            spawn.normalize_ticket("41")
+        with self.assertRaisesRegex(SystemExit, "--request-id"):
+            spawn.normalize_request_id("ab")
+
+
+class DispatchLedgerTests(LedgerIsolatedTestCase):
+    """Request-scoped dispatch identity, ledger reconciliation, fail-closed."""
+
+    def test_same_request_retry_reconciles_without_second_post(self) -> None:
+        recorder = api_recorder({CHILD: self.child_conv()}, self.posts)
+        with patch.object(spawn, "api", side_effect=recorder):
+            self.output_of(
+                spawn.run_dispatch, self.dispatch_args(), self.parent_conv()
+            )
+            self.assertEqual(self.posts, ["/api/conversations"])
+            receipt = self.output_of(
+                spawn.run_dispatch, self.dispatch_args(), self.parent_conv()
+            )
+        self.assertEqual(self.posts, ["/api/conversations"])
+        self.assertIn('"reconciled": true', receipt)
+        entry = spawn.load_ledger(PARENT)["req-aaa1"]
+        self.assertEqual(entry["status"], "accepted")
+        self.assertEqual(entry["ticket"], "#41")
+        self.assertEqual(entry["department"], "delivery")
+
+    def test_changed_payload_same_request_fails_closed_before_post(self) -> None:
+        recorder = api_recorder({CHILD: self.child_conv()}, self.posts)
+        with patch.object(spawn, "api", side_effect=recorder):
+            self.output_of(
+                spawn.run_dispatch, self.dispatch_args(), self.parent_conv()
+            )
+            with self.assertRaisesRegex(SystemExit, "collision"):
+                spawn.run_dispatch(
+                    self.dispatch_args(
+                        prompt_file=self.prompt_file("other.txt", "different task")
+                    ),
+                    self.parent_conv(),
+                    PARENT,
+                )
+        self.assertEqual(self.posts, ["/api/conversations"])
+
+    def test_dispatch_timeout_records_unknown_then_replay_reconciles(self) -> None:
+        with patch.object(
+            spawn, "api", side_effect=TimeoutError("connection timed out")
+        ), self.assertRaises(TimeoutError):
+            self.output_of(
+                spawn.run_dispatch, self.dispatch_args(), self.parent_conv()
+            )
+        entry = spawn.load_ledger(PARENT)["req-aaa1"]
+        self.assertEqual(entry["status"], "unknown")
+        self.assertEqual(self.posts, [])
+        retry_child = spawn.dispatch_request_child_id(
+            PARENT, "delivery", "#41", "req-aaa1"
+        )
+        recorder = api_recorder(
+            {retry_child: self.child_conv(cid=retry_child, status="running")},
+            self.posts,
+        )
+        with patch.object(spawn, "api", side_effect=recorder):
+            receipt = self.output_of(
+                spawn.run_dispatch, self.dispatch_args(), self.parent_conv()
+            )
+        self.assertEqual(self.posts, [])
+        self.assertIn('"receipt": "accepted"', receipt)
+        self.assertIn('"reconciled": true', receipt)
+
+    def test_rejected_dispatch_is_recorded_and_not_retried(self) -> None:
+        with patch.object(
+            spawn,
+            "api",
+            side_effect=SystemExit("HTTP 422 POST /api/conversations: bad request"),
+        ), self.assertRaisesRegex(SystemExit, "HTTP 422"):
+            self.output_of(
+                spawn.run_dispatch, self.dispatch_args(), self.parent_conv()
+            )
+        self.assertEqual(spawn.load_ledger(PARENT)["req-aaa1"]["status"], "rejected")
+        with patch.object(
+            spawn, "api", side_effect=api_recorder({}, self.posts)
+        ), self.assertRaisesRegex(SystemExit, "previously rejected"):
+            spawn.run_dispatch(self.dispatch_args(), self.parent_conv(), PARENT)
+        self.assertEqual(self.posts, [])
+
+    def test_active_ledger_dispatch_blocks_second_request_until_forced(self) -> None:
+        self.bind_target(status="accepted")
+        convs = {
+            TARGET: self.child_conv(cid=TARGET, status="running"),
+            CHILD: self.child_conv(cid=CHILD, status="running"),
+        }
+        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+            with self.assertRaisesRegex(SystemExit, "already exists"):
+                spawn.run_dispatch(
+                    self.dispatch_args(request_id="req-new9"),
+                    self.parent_conv(),
+                    PARENT,
+                )
+            self.assertEqual(self.posts, [])
+            self.output_of(
+                spawn.run_dispatch,
+                self.dispatch_args(request_id="req-new9", force=True),
+                self.parent_conv(),
+            )
+        self.assertEqual(self.posts, ["/api/conversations"])
+
+
+class ResumeTests(LedgerIsolatedTestCase):
+    """Explicit resume of the exact original direct-child department target."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.bind_target()
+
+    def test_resume_finished_child_posts_event_exact_target_without_create(self) -> None:
+        convs = {TARGET: self.child_conv(cid=TARGET, status="finished")}
+        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+            out = self.output_of(
+                spawn.run_resume, self.resume_args(), self.parent_conv()
+            )
+        self.assertEqual(self.posts, [f"/api/conversations/{TARGET}/events"])
+        self.assertIn('"receipt": "accepted"', out)
+        self.assertIn('"operation": "resume"', out)
+        self.assertIn(TARGET, out)
+
+    def test_resume_rejects_missing_target(self) -> None:
+        with patch.object(spawn, "api", side_effect=api_recorder({}, self.posts)):
+            with self.assertRaisesRegex(SystemExit, "does not exist"):
+                spawn.run_resume(self.resume_args(), self.parent_conv(), PARENT)
+        self.assertEqual(self.posts, [])
+
+    def test_resume_rejects_non_direct_child(self) -> None:
+        convs = {
+            TARGET: self.child_conv(
+                cid=TARGET, status="finished", parent_conversation_id=OTHER
+            )
+        }
+        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+            with self.assertRaisesRegex(SystemExit, "direct child"):
+                spawn.run_resume(self.resume_args(), self.parent_conv(), PARENT)
+        self.assertEqual(self.posts, [])
+
+    def test_resume_rejects_wrong_department(self) -> None:
+        convs = {
+            TARGET: self.child_conv(
+                cid=TARGET, status="finished", tags={"clientsource": "agentcanvas", "department": "acceptance"}
+            )
+        }
+        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+            with self.assertRaisesRegex(SystemExit, "department"):
+                spawn.run_resume(
+                    self.resume_args(department="delivery"),
+                    self.parent_conv(),
+                    PARENT,
+                )
+        self.assertEqual(self.posts, [])
+
+    def test_resume_rejects_workspace_mismatch(self) -> None:
+        convs = {
+            TARGET: self.child_conv(
+                cid=TARGET,
+                status="finished",
+                workspace={"kind": "LocalWorkspace", "working_dir": os.path.join(self.tmp, "elsewhere")},
+            )
+        }
+        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+            with self.assertRaisesRegex(SystemExit, "workspace"):
+                spawn.run_resume(self.resume_args(), self.parent_conv(), PARENT)
+        self.assertEqual(self.posts, [])
+
+    def test_resume_rejects_missing_clientsource_tag(self) -> None:
+        convs = {
+            TARGET: self.child_conv(
+                cid=TARGET, status="finished", tags={"department": "delivery"}
+            )
+        }
+        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+            with self.assertRaisesRegex(SystemExit, "clientsource"):
+                spawn.run_resume(self.resume_args(), self.parent_conv(), PARENT)
+        self.assertEqual(self.posts, [])
+
+    def test_resume_rejects_active_target_without_concurrent_run(self) -> None:
+        convs = {TARGET: self.child_conv(cid=TARGET, status="running")}
+        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+            with self.assertRaisesRegex(SystemExit, "active"):
+                spawn.run_resume(self.resume_args(), self.parent_conv(), PARENT)
+        self.assertEqual(self.posts, [])
+
+    def test_resume_rejects_stopped_target_without_silent_success(self) -> None:
+        convs = {TARGET: self.child_conv(cid=TARGET, status="stopped")}
+        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+            with self.assertRaisesRegex(SystemExit, "stopped"):
+                spawn.run_resume(self.resume_args(), self.parent_conv(), PARENT)
+        self.assertEqual(self.posts, [])
+
+    def test_resume_rejects_child_unbound_in_ledger(self) -> None:
+        ledger = spawn.load_ledger(PARENT)
+        ledger.pop("req-disp0")
+        spawn.save_ledger(PARENT, ledger)
+        convs = {TARGET: self.child_conv(cid=TARGET, status="finished")}
+        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+            with self.assertRaisesRegex(SystemExit, "authorized department child"):
+                spawn.run_resume(self.resume_args(), self.parent_conv(), PARENT)
+        self.assertEqual(self.posts, [])
+
+    def test_resume_ticket_mismatch_is_rejected(self) -> None:
+        convs = {TARGET: self.child_conv(cid=TARGET, status="finished")}
+        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+            with self.assertRaisesRegex(SystemExit, "ticket"):
+                spawn.run_resume(
+                    self.resume_args(ticket="#42"), self.parent_conv(), PARENT
+                )
+        self.assertEqual(self.posts, [])
+
+    def test_resume_error_target_allows_single_bounded_attempt(self) -> None:
+        convs = {TARGET: self.child_conv(cid=TARGET, status="error")}
+        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+            self.output_of(
+                spawn.run_resume, self.resume_args(), self.parent_conv()
+            )
+            self.assertEqual(self.posts, [f"/api/conversations/{TARGET}/events"])
+            replay = self.output_of(
+                spawn.run_resume, self.resume_args(), self.parent_conv(), PARENT
+            )
+            self.assertIn('"reconciled": true', replay)
+        self.assertEqual(self.posts.count(f"/api/conversations/{TARGET}/events"), 1)
+
+    def test_resume_timeout_yields_unknown_then_reconciles_running(self) -> None:
+        with patch.object(
+            spawn, "api", side_effect=TimeoutError("read timed out")
+        ), self.assertRaises(TimeoutError):
+            self.output_of(
+                spawn.run_resume, self.resume_args(), self.parent_conv()
+            )
+        entry = spawn.load_ledger(PARENT)["req-res1"]
+        self.assertEqual(entry["status"], "unknown")
+        self.assertEqual(entry["target_id"], TARGET)
+        convs = {TARGET: self.child_conv(cid=TARGET, status="running")}
+        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+            receipt = self.output_of(
+                spawn.run_resume, self.resume_args(), self.parent_conv()
+            )
+        self.assertEqual(self.posts, [])
+        self.assertIn('"receipt": "accepted"', receipt)
+        self.assertIn('"reconciled": true', receipt)
+
+    def test_resume_unknown_still_finished_resends_once_then_unknown(self) -> None:
+        with patch.object(
+            spawn, "api", side_effect=TimeoutError("read timed out")
+        ), self.assertRaises(TimeoutError):
+            self.output_of(
+                spawn.run_resume, self.resume_args(), self.parent_conv()
+            )
+        convs = {TARGET: self.child_conv(cid=TARGET, status="finished")}
+        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+            self.output_of(
+                spawn.run_resume, self.resume_args(), self.parent_conv()
+            )
+            self.assertEqual(
+                self.posts, [f"/api/conversations/{TARGET}/events"]
+            )
+            replay = self.output_of(
+                spawn.run_resume, self.resume_args(), self.parent_conv()
+            )
+            self.assertIn('"reconciled": true', replay)
+        self.assertEqual(
+            self.posts.count(f"/api/conversations/{TARGET}/events"), 1
+        )
+
+    def test_resume_socket_timeout_yields_unknown_receipt(self) -> None:
+        class StallHandler(socketserver.BaseRequestHandler):
+            def handle(self) -> None:
+                import time
+
+                time.sleep(5)
+
+        server = socketserver.TCPServer(("127.0.0.1", 0), StallHandler)
+        port = server.server_address[1]
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        base = spawn.BASE
+        try:
+            spawn.BASE = f"http://127.0.0.1:{port}"
+
+            def slow_urlopen(req, timeout=None):
+                return REAL_URLOPEN(req, timeout=1)
+
+            with patch.object(spawn, "session_key", return_value="test-key"), patch.object(
+                spawn, "urlopen", slow_urlopen
+            ), self.assertRaises((SystemExit, TimeoutError)):
+                self.output_of(
+                    spawn.run_resume, self.resume_args(), self.parent_conv()
+                )
+        finally:
+            spawn.BASE = base
+            server.shutdown()
+            server.server_close()
+        entry = spawn.load_ledger(PARENT).get("req-res1")
+        self.assertIsNotNone(entry)
+        self.assertEqual(entry["status"], "unknown")
+        self.assertIn("target", entry["evidence"])
+
+
+class NotifyIdentityTests(LedgerIsolatedTestCase):
+    """Notify direction, related-request round-trip match, replay reconcile."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.bind_target()
+        ledger = spawn.load_ledger(PARENT)
+        entry = ledger.pop("req-disp0")
+        entry["request_id"] = "req-not1"
+        entry["child_id"] = CHILD
+        ledger["req-not1"] = entry
+        spawn.save_ledger(PARENT, ledger)
+
+    def child_window(self) -> dict:
+        return {
+            "id": CHILD,
+            "workspace": {"kind": "LocalWorkspace", "working_dir": self.wd},
+            "tags": {"clientsource": "agentcanvas", "department": "delivery"},
+            "parent_conversation_id": PARENT,
+        }
+
+    def notify_args(self, **over):
+        base = dict(
+            mode="notify",
+            this_id="",
+            profile_id="",
+            department="",
+            github_token_secret="",
+            prompt_file=self.prompt_file(
+                "report.txt",
+                "engineering:report\ndepartment: delivery\nticket: #41\nhop: done\nrequest: req-not1\n",
+            ),
+            max_iterations=500,
+            poll_sec=0,
+            timeout_sec=5400,
+            force=False,
+            ticket="",
+            request_id="req-report1",
+            target_id="",
+            related_request_id="",
+        )
+        base.update(over)
+        return argparse.Namespace(**base)
+
+    def test_related_request_match_posts_to_parent_and_accepts(self) -> None:
+        convs = {PARENT: {"id": PARENT, "status": "running"}}
+        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+            out = self.output_of(
+                spawn.run_notify,
+                self.notify_args(related_request_id="req-not1"),
+                self.child_window(),
+                CHILD,
+            )
+        self.assertIn(f"/api/conversations/{PARENT}/events", self.posts)
+        self.assertIn('"receipt": "accepted"', out)
+
+    def test_related_request_mismatch_rejected_without_post(self) -> None:
+        convs = {PARENT: {"id": PARENT, "status": "running"}}
+        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+            with self.assertRaisesRegex(SystemExit, "stale"):
+                spawn.run_notify(
+                    self.notify_args(related_request_id="req-other"),
+                    self.child_window(),
+                    CHILD,
+                )
+        self.assertEqual(self.posts, [])
+        self.assertNotIn("req-report1", spawn.load_ledger(PARENT))
+
+    def test_identical_replay_reconciles_without_second_post(self) -> None:
+        convs = {PARENT: {"id": PARENT, "status": "running"}}
+        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+            self.output_of(spawn.run_notify, self.notify_args(), self.child_window(), CHILD)
+            receipt = self.output_of(
+                spawn.run_notify, self.notify_args(), self.child_window(), CHILD
+            )
+        self.assertEqual(
+            self.posts.count(f"/api/conversations/{PARENT}/events"), 1
+        )
+        self.assertIn('"reconciled": true', receipt)
+
+    def test_changed_text_same_request_rejected(self) -> None:
+        convs = {PARENT: {"id": PARENT, "status": "running"}}
+        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+            self.output_of(spawn.run_notify, self.notify_args(), self.child_window(), CHILD)
+            with self.assertRaisesRegex(SystemExit, "collision"):
+                spawn.run_notify(
+                    self.notify_args(
+                        prompt_file=self.prompt_file(
+                            "report2.txt",
+                            "engineering:report\ndepartment: delivery\nticket: #41\nrequest: req-not1\nhop: blocked\n",
+                        )
+                    ),
+                    self.child_window(),
+                    CHILD,
+                )
+        self.assertEqual(
+            self.posts.count(f"/api/conversations/{PARENT}/events"), 1
+        )
+
+    def test_planning_direction_is_refused(self) -> None:
+        with patch.object(spawn, "api", side_effect=api_recorder({}, self.posts)):
+            with self.assertRaisesRegex(SystemExit, "Planning must not notify"):
+                spawn.run_notify(
+                    self.notify_args(), self.parent_conv(), PARENT
+                )
+        self.assertEqual(self.posts, [])
+
+
+class ControlledHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
+    """Deterministic local HTTP adapter fixture for subprocess tests."""
+
+    daemon_threads = True
+
+
+class ControlledHTTPHandler(http.server.BaseHTTPRequestHandler):
+    """Serve the minimal conversation API used by the CLI operations."""
+
+    server: ControlledHTTPServer
+
+    def log_message(self, format: str, *args: object) -> None:
+        return
+
+    def _json(self, status: int, payload: dict) -> None:
+        data = json.dumps(payload).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def do_GET(self) -> None:
+        self.server.requests.append(("GET", self.path))
+        conversations = {
+            f"/api/conversations/{PARENT}": {
+                "id": PARENT,
+                "workspace": {
+                    "kind": "LocalWorkspace",
+                    "working_dir": self.server.working_dir,
+                },
+                "tags": {"clientsource": "agentcanvas"},
+            },
+            f"/api/conversations/{CHILD}": {
+                "id": CHILD,
+                "workspace": {
+                    "kind": "LocalWorkspace",
+                    "working_dir": self.server.working_dir,
+                },
+                "tags": {
+                    "clientsource": "agentcanvas",
+                    "department": "delivery",
+                },
+                "parent_conversation_id": PARENT,
+                "status": "finished",
+            },
+        }
+        payload = conversations.get(self.path)
+        if payload is None:
+            self._json(404, {"detail": "not found"})
+        else:
+            self._json(200, payload)
+
+    def do_POST(self) -> None:
+        length = int(self.headers.get("Content-Length", "0"))
+        body = self.rfile.read(length) if length else b""
+        self.server.requests.append(("POST", self.path, body))
+        if self.path == "/api/conversations":
+            self._json(200, {"id": CHILD, "conversation_id": CHILD})
+        elif self.path.endswith("/events"):
+            self._json(200, {"accepted": True})
+        else:
+            self._json(404, {"detail": "not found"})
+
+
+class ProcessCompletionAcceptanceTests(unittest.TestCase):
+    """Verify real HTTP adapter and CLI process completion semantics."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.mkdtemp(prefix="spawn41-http-")
+        self.working_dir = os.path.join(self.tmp, "project")
+        os.makedirs(self.working_dir)
+        self.server = ControlledHTTPServer(("127.0.0.1", 0), ControlledHTTPHandler)
+        self.server.working_dir = self.working_dir
+        self.server.requests = []
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+
+    def tearDown(self) -> None:
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=2)
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def run_cli(self, *arguments: str) -> dict:
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "OPENHANDS_URL": (
+                    f"http://127.0.0.1:{self.server.server_address[1]}"
+                ),
+                "OPENHANDS_UI": "http://127.0.0.1:3001",
+                "OPENHANDS_CONVERSATION_ID": "",
+                "CONVERSATION_ID": "",
+                "OPENHANDS_DISPATCH_LEDGER_DIR": os.path.join(
+                    self.tmp, "ledger"
+                ),
+            }
+        )
+        completed = subprocess.run(
+            [sys.executable, str(MODULE_PATH), *arguments],
+            cwd=self.working_dir,
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        self.assertEqual(
+            completed.returncode,
+            0,
+            msg=f"CLI failed: stdout={completed.stdout!r} stderr={completed.stderr!r}",
+        )
+        self.assertEqual(completed.stderr, "")
+        decoder = json.JSONDecoder()
+        remaining = completed.stdout.lstrip()
+        reports = []
+        while remaining:
+            report, end = decoder.raw_decode(remaining)
+            reports.append(report)
+            remaining = remaining[end:].lstrip()
+        self.assertGreaterEqual(len(reports), 2)
+        for report in reports:
+            self.assertEqual(report["receipt"], "accepted")
+            self.assertIn("evidence", report)
+        return reports[-1]
+
+    def write_prompt(self, name: str, text: str) -> str:
+        path = os.path.join(self.tmp, name)
+        Path(path).write_text(text, encoding="utf-8")
+        return path
+
+    def test_dispatch_resume_notify_are_real_processes_with_no_post_success_calls(self) -> None:
+        dispatch_prompt = self.write_prompt("dispatch.txt", "dispatch ticket #41")
+        dispatch = self.run_cli(
+            "--mode",
+            "dispatch",
+            "--this-id",
+            PARENT,
+            "--profile-id",
+            PROFILE,
+            "--department",
+            "delivery",
+            "--ticket",
+            "#41",
+            "--request-id",
+            "req-dispatch",
+            "--prompt-file",
+            dispatch_prompt,
+            "--poll-sec",
+            "0",
+        )
+        self.assertEqual(dispatch["receipt"], "accepted")
+        self.assertEqual(dispatch["operation"], "dispatch")
+        self.assertEqual(
+            self.server.requests[-1][0:2], ("POST", "/api/conversations")
+        )
+
+        resume_prompt = self.write_prompt("resume.txt", "resume ticket #41")
+        resume = self.run_cli(
+            "--mode",
+            "resume",
+            "--this-id",
+            PARENT,
+            "--target-id",
+            CHILD,
+            "--ticket",
+            "#41",
+            "--request-id",
+            "req-resume",
+            "--prompt-file",
+            resume_prompt,
+            "--poll-sec",
+            "0",
+        )
+        self.assertEqual(resume["receipt"], "accepted")
+        self.assertEqual(resume["operation"], "resume")
+        self.assertEqual(self.server.requests[-1][0:2], ("POST", f"/api/conversations/{CHILD}/events"))
+
+        report = self.write_prompt(
+            "report.txt",
+            "engineering:report\ndepartment: delivery\nticket: #41\n"
+            "hop: done\nrequest: req-dispatch\n",
+        )
+        notify = self.run_cli(
+            "--mode",
+            "notify",
+            "--this-id",
+            CHILD,
+            "--ticket",
+            "#41",
+            "--request-id",
+            "req-notify",
+            "--related-request-id",
+            "req-dispatch",
+            "--prompt-file",
+            report,
+            "--poll-sec",
+            "0",
+        )
+        self.assertEqual(notify["receipt"], "accepted")
+        self.assertEqual(notify["operation"], "notify")
+        self.assertEqual(
+            self.server.requests[-1][0:2],
+            ("POST", f"/api/conversations/{PARENT}/events"),
+        )
+
+        for operation in (dispatch, resume, notify):
+            self.assertIsInstance(operation["evidence"], str)
+            self.assertTrue(operation["evidence"])
+        self.assertNotIn("/run", [request[1] for request in self.server.requests])
+
+
+
+class CompletionSemanticsTests(LedgerIsolatedTestCase):
+    """accepted receipt is emitted and the run returns when polling is off."""
+
+    def test_accepted_dispatch_returns_immediately_with_receipt(self) -> None:
+        recorder = api_recorder({CHILD: self.child_conv()}, self.posts)
+        with patch.object(spawn, "api", side_effect=recorder), patch.object(
+            spawn.time, "sleep"
+        ) as sleeper:
+            out = self.output_of(
+                spawn.run_dispatch, self.dispatch_args(poll_sec=0), self.parent_conv()
+            )
+        self.assertEqual(self.posts, ["/api/conversations"])
+        self.assertIn('"receipt": "accepted"', out)
+        self.assertIn('"operation": "dispatch"', out)
+        sleeper.assert_not_called()
+
+    def test_accepted_resume_returns_immediately_with_receipt(self) -> None:
+        self.bind_target()
+        convs = {TARGET: self.child_conv(cid=TARGET, status="finished")}
+        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)), patch.object(
+            spawn.time, "sleep"
+        ) as sleeper:
+            out = self.output_of(
+                spawn.run_resume,
+                self.resume_args(poll_sec=0),
+                self.parent_conv(),
+            )
+        self.assertEqual(self.posts, [f"/api/conversations/{TARGET}/events"])
+        self.assertIn('"receipt": "accepted"', out)
+        sleeper.assert_not_called()
+
+
+class ReceiptShapeTests(LedgerIsolatedTestCase):
+    """Receipts carry the required structured fields, never credentials."""
+
+    def test_receipt_fields_present(self) -> None:
+        receipt = spawn.make_receipt(
+            "accepted",
+            operation="dispatch",
+            request_id="req-1",
+            ticket="#41",
+            department="delivery",
+            parent_id=PARENT,
+            target_id=CHILD,
+            evidence="POST accepted",
+        )
+        for key in (
+            "receipt",
+            "operation",
+            "request_id",
+            "ticket",
+            "department",
+            "parent_id",
+            "target_id",
+            "evidence",
+            "next_action",
+        ):
+            self.assertIn(key, receipt)
+        self.assertNotEqual(receipt["receipt"], "finished")
+
+    def test_ledger_contains_no_secret_looking_values(self) -> None:
+        self.bind_target()
+        blob = json.dumps(spawn.load_ledger(PARENT))
+        for banned in ("X-Session-API-Key", "api-key", "GH_TOKEN", "ghp_"):
+            self.assertNotIn(banned, blob)
+
+    def test_ledger_rejects_non_uuid_parent(self) -> None:
+        with self.assertRaisesRegex(SystemExit, "UUID"):
+            spawn.load_ledger("../../etc")
 
 
 if __name__ == "__main__":

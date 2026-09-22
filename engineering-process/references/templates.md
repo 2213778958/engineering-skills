@@ -16,7 +16,7 @@
 
 | Department | manage | implement | review | verify |
 |---|---|---|---|---|
-| **planning** | talk to the user; this conversation has not confirmed yet (not 回传): write missing `until: none`, print `mode` / `until` / `merge` / `verify` / `accept` + MODELS, wait for confirm, then 推进; 分发 other departments; staff this department's employees; collect receipts; after 分发 stop; after 回传 / 决策 receipts follow **Stop** tables | 决策 technical: `engineering-init` **patch**, apply verdict, pause/resume, open bug tickets, comment pull again; rewrite spec `engineering:graph` when tickets or edges change; create the ticket tree before 分发 | review the planning implement output and the spec flow graph if edges changed | — |
+| **planning** | talk to the user; this conversation has not confirmed yet (not 回传): write missing `until: none`, print `mode` / `until` / `merge` / `verify` / `accept` + MODELS, wait for confirm, then 推进; 分发 other departments; staff this department's employees; collect receipts; after 分发 stop; after 回传 / 决策 receipts follow **Stop** tables | 决策 technical: `engineering-init` **patch**, apply verdict, pause/resume, open bug tickets, comment pull again; create the ticket tree before 分发 | review the planning implement output | — |
 | **delivery** | staff employees; after receipts `git push` and close this implement ticket; sessions **notify** | product code + `git commit` (no push) | review the implementation | run `verify:` |
 | **acceptance** | staff employees; after receipts `gh pr` / honor `merge:`; close this acceptance; sessions **notify** | merge `engineering:heads`: create `merge/<n>` if needed, merge heads, worktree add/remove per worktree.md | review merge / PR scope | run `accept:` (`none` may still open a PR) |
 | **arbitration** | staff employees; after receipts write the verdict comment; sessions **notify** (next hop is 决策) | reproduce + opinion; no product-code edits | review the opinion | run `verify:`; check whether reproduction holds |
@@ -33,7 +33,7 @@
 - Unblock = close upstream tickets. Do not unblock with `remove-blocked-by`.
 - worktrees: `planning` implement creates them before 分发; `acceptance` implement removes after merge. Both semi-auto and full-auto. Under the Canvas container `worktree/`. See [worktree.md](worktree.md). Do not POST `worktree: true`. Do not POST a tree path as `working_dir`.
 - After a 分发 → **stop**. Do not watch. After 回传 / 决策 receipts → **Stop** tables. After a **close**: first a ticket that close unblocked (`human` then acceptance); none → hop table. Same class → smallest issue number.
-- This department **manage** closes or reopens a graph ticket → run `python <engineering-init>/scripts/render_graph.py --issue <spec> --write` (spec = `Part of #<n>`). Do not change contains / uses. Human review fail: only the **human** department reopens the implement ticket (3a).
+- Close or reopen actions write no graph. Ticket order comes from GitHub-native relationships only (`blockedBy` + open sub-issue parent blocks its children). Human review fail: only the **human** department reopens the implement ticket (3a).
 - Parallel = another 分发 (another 推进 on the planning department) or another planning department window. Not two tickets in one tree `PROCESS.md`.
 - Do not 分发 downstream while upstream still blocks. Named tickets neither.
 
@@ -89,6 +89,23 @@ Follow this canonical transition table. Every transition preserves `prior-work`:
 
 A malformed disposition or findings without all four fields are incomplete receipts. Do not staff verify, push, close, or notify until corrected. Arbitration receives only the finding blocks selected by the table's arbitration scope, the disposition when one exists, relevant implementation/review receipts, and preserved accepted fixes; it does not reconsider accepted independent findings.
 
+## Department resume (same-ticket continuation)
+
+Same-ticket continuation = the next hop is a department that already has a dispatch child for this ticket (typical after arbitration sends the ticket back, or after a human send-back reopens the implement ticket). That continuation **resumes the original department manage conversation**. It is not a new 分发 and does not create a window.
+
+Planning manage resumes via sessions only:
+
+```
+python <sessions-skill>/scripts/spawn.py --mode resume --target-id <uuid> --ticket #<n> --request-id <id>
+```
+
+- `--target-id` is the exact conversation id recorded at 分发 (dispatch report `id` / `url`). Never infer the continuation target from an old conversation id found elsewhere. `--ticket` + `--request-id` carry the stable request identity; when reconciling one intentional continuation, reuse the same `--request-id`.
+- Do not `--mode dispatch` and do not `--mode open` the same department on the same ticket again; redispatch or a new department window → **fail**. The resume target is the department **manage** window (the dispatch child carrying that department tag), never an implement / review / verify subagent. Employees are Task delegate and have no conversation window to resume; resuming or reusing an employee conversation for department continuation → **fail**.
+- Receipts: `accepted` = the continuation operation was accepted only, not department work completion; do not finish the hop, do not watch. `unknown` = unproven (timeout or lost response): reconcile with the same `--ticket` + `--request-id`; a timeout or lost response is unknown-until-reconciled, not a retry trigger — no blind retry, no redispatch on timeout. `rejected` = stop with the receipt evidence; no automatic replacement dispatch and no force bypass.
+- Preserve commits, accepted fixes, existing history, and valid receipts across the resume. Rerun only the hops the arbitration verdict invalidated (the disputed scope); do not re-run accepted independent findings or already verified hops.
+- Reporting stays child → parent: the resumed department manage still finishes the hop with sessions `spawn.py --mode notify`. Callers use spawn.py only; never copied raw HTTP calls.
+- This resume does not implement the **Review disposition** flow above. Disposition keeps returning review findings to the original implement employee inside that delivery window; resume only continues the department window. Keep both intact; do not conflate them.
+
 ## Key points: what each hop does
 
 Follow the **职责表**. Hop `template` = that department's **manage** window.
@@ -143,6 +160,8 @@ Tree already has `issue:` = this open ticket and `template:` is a department hop
 | `ready-for-human` | `human` | **分发** human department |
 | disputed review finding after disposition/rework, explicit contract/upstream challenge, or user challenge | `arbitration` | **分发** arbitration department |
 
+Same ticket and the target department already has a dispatch child → that is a continuation, not a new 分发: **Department resume** above.
+
 ## Test intensity
 
 | Hop | Field | Run |
@@ -178,4 +197,4 @@ Only this **current acceptance ticket**'s `engineering:heads` (≤4). One-shot i
 3. Leave-one-out: for each h, merge "all except h" onto the default branch. Merge fails → h is accused. `accept:` turns green → dropping h fixes it; h is accused.
 4. Accused still empty → merge one at a time. Single fail → accused. Every single passes, all together fail → **integration issue**: do not auto-reopen; stop; give the table to the person/planning.
 5. Accused nonempty and not pure integration → reopen the accused. feat → reopen that implement (and that line's closed gates). `merge/<child-acceptance>` → **run this section on that child acceptance**; do not reopen every implement from the top.
-6. Write the isolation table as a comment on the current acceptance. `issue: none`. Run `python <engineering-init>/scripts/render_graph.py --issue <spec> --write`. Stop. Report to planning.
+6. Write the isolation table as a comment on the current acceptance. `issue: none`. Stop. Report to planning.

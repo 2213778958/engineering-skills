@@ -27,12 +27,12 @@ Planning is a **department**, not a layer above departments. Other departments t
 
 | Layer | Who | Window | Does | Must not |
 |---|---|---|---|---|
-| **department (manage)** | planning | user entry: `parent_conversation_id` empty | talk to the user; **分发** one graph ticket to **another** department, then stop; or **决策**: staff `planning` implement + review, wait receipts, then stop | run delivery/acceptance/arbitration/human hops; run the phenomenon test; run patch; watch the other department; 分发 to itself; staff other departments' employees |
+| **department (manage)** | planning | user entry: `parent_conversation_id` empty | talk to the user; **分发** one ticket to **another** department, then stop; or **决策**: staff `planning` implement + review, wait receipts, then stop | run delivery/acceptance/arbitration/human hops; run the phenomenon test; run patch; watch the other department; 分发 to itself; staff other departments' employees |
 | **department (manage)** | delivery / acceptance / arbitration | `spawn.py --mode dispatch` child | one tree `issue:`; staff **employees** per 职责表; wait for each receipt; finish that hop; sessions **notify**; stop | 分发 another department; reset to planning; treat user 推进 as entry; finish after launching Task; do implement/review/verify work |
 | **department (manage)** | human | `spawn.py --mode dispatch` child | one tree `issue:` (or main checkout if no tree); talk to the user: how to test and accept, and help; wait for pass/fail; sessions **notify** | staff implement/review/verify; 分发; treat user 推进 as entry |
 | **employee** | implement / review / verify / datasheet extract | Task subagent only | the receipt | a conversation window; `spawn.py`; `git push`; `gh pr` |
 
-**分发** = already-created graph ticket (init to-tickets) → write hop + `issue:` on the **ticket tree** → `planning` implement creates the tree if needed → `spawn.py --mode dispatch` that **other** department → report URL → **stop**. Do not watch.
+**分发** = already-created ticket (init to-tickets) → write hop + `issue:` on the **ticket tree** → `planning` implement creates the tree if needed → `spawn.py --mode dispatch` that **other** department → report URL → **stop**. Do not watch.
 
 **决策** = planning **manage** own hop. Stay. Staff `planning` implement (`engineering-init` **patch`) + `planning` review. Wait receipts. Do not run patch in this window. Do not spawn. After receipts: templates.md **Stop** tables (may 分发 once this turn).
 
@@ -68,15 +68,17 @@ Planning is a **department**, not a layer above departments. Other departments t
 17. **`MODELS` latch.** Planning session start (Entry): print `docs/agents/MODELS.md` with the PROCESS fields; wait for confirm. Later turns: print the table; do not wait unless `confirmed:` is not `yes`. User confirms → `confirmed: yes`. User changes a cell → write and `confirmed: yes`. Follow the **targets**. Format is the n×m grid in models-stub (department × manage/implement/review/verify). Employee cells: use that cell's target; ignore a `dispatch` link. Planning manage cell: `stay`. Other department manage cells: `dispatch` + spawnable profile; 分发 uses that target. File has `supervisor` and no `planning` → treat that as planning manage `stay`. Missing other-department manage cell → 分发 uses this conversation's spawnable profile. Do not refill the table unless the user changes a cell. Other departments: do not ask; follow targets.
 18. **Employees (forced).** Roles `planning implement` / `planning review` / `delivery implement` / `delivery review` / `delivery verify` / `acceptance implement` / `acceptance review` / `acceptance verify` / `arbitration implement` / `arbitration review` / `arbitration verify` / `datasheet extract` = **delegate**, and only from the matching **department manage**. MODELS says `dispatch` on those cells → ignore; still delegate. No Task → fail; do not spawn an employee conversation. Wait until each receipt is in this conversation. Background Task → **fail**. Receipt missing → **fail**; do not finish. Manage must not do that work in the window.
 
+19. **Same-ticket department continuation.** The next hop is a department already dispatched for this ticket (typical after arbitration sends the ticket back) → resume the original department manage conversation: sessions `spawn.py --mode resume` with `--target-id` (the exact child id recorded at 分发) + `--ticket` + `--request-id` (stable request identity). Do not `--mode dispatch` and do not `--mode open` a new window for that ticket + department. Do not infer the target from an old conversation id. Do not resume or reuse an employee conversation; the target is the department **manage** window. Receipts, reconciliation, and preservation: templates.md **Department resume**. Review findings still return to the original implement employee per templates.md **Review disposition**; that flow is separate.
+
 ## Key points
 
-Manage windows must not: edit product files, run patch, merge heads, open PDFs, paste datasheets / all three graphs / other modules' source, open an employee conversation window, `GET` child-session events, change contains/uses, clone the origin repo, `gh` the origin repo. Touching product paths in the editor / whole-repo format → **fail**.
+Manage windows must not: edit product files, run patch, merge heads, open PDFs, paste datasheets / other modules' source, open an employee conversation window, `GET` child-session events, change contains/uses, clone the origin repo, `gh` the origin repo. Touching product paths in the editor / whole-repo format → **fail**.
 
 Duties: templates.md **职责表**.
 
 | Action | Who | Not who |
 |---|---|---|
-| 分发 a graph ticket | planning **manage** only | other departments; implement/review/verify |
+| 分发 a ticket | planning **manage** only | other departments; implement/review/verify |
 | 决策 technical (patch: body, `blocked-by`, fix tickets, pause/resume, fill tests, apply verdict) | `planning` **implement** (`engineering-init` **patch**). From arbitration → apply the written verdict only | planning manage; other departments; do not judge the verdict |
 | Write the arbitration verdict comment | `arbitration` **manage** (after employee receipts) | planning, delivery, human; implement writes the opinion only |
 | Open / merge PR | `acceptance` **manage**, and current ticket body has `engineering:pr` | implement tickets, gates, planning; acceptance implement does git merge only |
@@ -160,9 +162,10 @@ Else (planning): scan
 
 ```
 gh issue list --label <label> --state open --limit 50 --json number,title,url,blockedBy
+gh issue view <n> --json blockedBy,subIssues
 ```
 
-Keep only unblocked: `blockedBy` empty, or every item closed. Open upstream → drop it. No ticket → stop; report still-open sinks (may be more than one).
+GitHub-native ordering only. Keep only unblocked: `blockedBy` empty or every item closed, and no open sub-issue parent above (an open parent sub-issue blocks its children, matching GitHub sub-issue `blocked` semantics). Open upstream → drop it. No ticket → stop; report still-open sinks (may be more than one).
 
 ## Steps: supervise
 
@@ -176,7 +179,7 @@ Keep only unblocked: `blockedBy` empty, or every item closed. Open upstream → 
 
 Talk to the user. Tell them how to test and accept this gate (what to run or look at, what pass looks like). Help if they ask. Write comments as needed. Do not staff employees. Do not 分发. Do not notify until the person said pass or fail.
 
-Person said fail → reopen the previous implement ticket and send it back to `ready-for-agent`. Do not turn the gate ticket into `ready-for-agent`. Tree `issue: none`. Run `python <engineering-init>/scripts/render_graph.py --issue <spec> --write` (spec = `Part of #<n>` on this ticket). Script fail → **fail**. Notify (`hop: send-back`, suggested next 分发 delivery). Person said the phenomenon passed → close **this** gate or sink, `issue: none`, run the same graph write, notify (`hop: done`).
+Person said fail → reopen the previous implement ticket and send it back to `ready-for-agent`. Do not turn the gate ticket into `ready-for-agent`. Tree `issue: none`. Notify (`hop: send-back`, suggested next 分发 delivery). Person said the phenomenon passed → close **this** gate or sink, `issue: none`, notify (`hop: done`).
 
 ### 3b. `arbitration` (department)
 
@@ -210,13 +213,13 @@ Suggested edits: <ticket list or none>
 Hand to: planning
 ```
 
-`Verdict: review-wrong` and the implement ticket still open → write tree `template: delivery` and `issue:` that implement (suggested next 分发 delivery). Other verdicts → write tree `issue: none` (suggested next 决策). Notify. Stop.
+`Verdict: review-wrong` and the implement ticket still open → write tree `template: delivery` and `issue:` that implement (suggested next 分发 delivery; same ticket and that department already dispatched → resume per rule 19 / templates.md **Department resume**, not a new dispatch). Other verdicts → write tree `issue: none` (suggested next 决策). Notify. Stop.
 
 ### 3c. `planning` (planning **manage** 决策)
 
-`contract` is not `ready` → stop, go to plan. Already `ready`: staff `planning implement` then `planning review` (**delegate**). Prompt implement: ticket URLs, read and run `engineering-init` **patch**, receipt (include whether spec `engineering:graph` was written). Edges changed and graph not written → receipt incomplete; do not finish. Review checks the spec flow graph has the new nodes and edges. Do not run patch in this window. No open/merge PR. No product-code edits by manage. Do not staff delivery / acceptance / arbitration employees. Wait until both receipts are in this conversation; receipts missing → do not finish. No `spawn.py`. Changing layers / breaking a cycle / migrate → stop, go to plan or migrate.
+`contract` is not `ready` → stop, go to plan. Already `ready`: staff `planning implement` then `planning review` (**delegate**). Prompt implement: ticket URLs, read and run `engineering-init` **patch**, receipt. Review reviews that receipt. Do not run patch in this window. No open/merge PR. No product-code edits by manage. Do not staff delivery / acceptance / arbitration employees. Wait until both receipts are in this conversation; receipts missing → do not finish. No `spawn.py`. Changing layers / breaking a cycle / migrate → stop, go to plan or migrate.
 
-Implement does the patch (verdict, new need, fill tests, pause/resume, rewrite spec `engineering:graph` when tickets or edges change). Review reviews that output and the spec graph. Manage does not edit issue bodies or `blocked-by`. Does not run `render_graph.py`.
+Implement does the patch (verdict, new need, fill tests, pause/resume). Review reviews that output. Manage does not edit issue bodies or `blocked-by`.
 
 After implement receipt:
 
@@ -257,7 +260,7 @@ Review pass with non-blocking notes remains pass; copy Notes to a ticket comment
 
 verify=`fail` (when a command exists), implement=`fail` and paths 2–3 did not fire, or a blocking finding accepted on fresh review still fails → do not push, do not close, send back to `ready-for-agent`. Tree `issue: none`. Notify (`hop: send-back`). Stop.
 
-implement=`pass` and review=`pass` and (`verify: none` or pass) → **delivery manage** `git push -u origin HEAD` → **close this implement ticket**. Tree `issue: none`. Run `python <engineering-init>/scripts/render_graph.py --issue <spec> --write` (spec = `Part of #<n>` on this ticket). Script fail → **fail**. Notify (`hop: done`). Do not open a PR. Do not change gate-ticket edges. Stop.
+implement=`pass` and review=`pass` and (`verify: none` or pass) → **delivery manage** `git push -u origin HEAD` → **close this implement ticket**. Tree `issue: none`. Notify (`hop: done`). Do not open a PR. Stop.
 
 A disposition with `Action: arbitration`, the same finding disputed after focused rework, an implement-originated explicit contract/upstream challenge, or a user challenge → do not push; write tree `template: arbitration`; keep `issue:`; notify (`hop: need-arbitration`). Include only disputed finding IDs and preserve accepted fixes and prior valid receipts. A review-originated contract/upstream challenge follows the blocking-review disposition flow first. Do not run 3b in this window. Next planning 推进 **分发** arbitration (tree hop already set).
 
@@ -267,7 +270,7 @@ Current ticket body has no `engineering:pr` → stop; no PR.
 
 Do not edit product code in this window. Staff implement + review + verify (**delegate**) (roles `acceptance implement` / `acceptance review` / `acceptance verify`). Wait until those receipts are in this conversation. Receipts missing → do not open/merge a PR, do not finish. implement merges `engineering:heads` and worktrees per worktree.md. `accept:` is `none` or empty → verify receipt `Verify: none`, issue comment "full suite unset", **still may open a PR**. Command present → acceptance verify runs `accept:`. Acceptance verify has no `Challenge`; do not enter 3b from this hop. Do not spawn a child conversation.
 
-`accept:` failed → staff acceptance implement for leave-one-out isolation per templates.md (this ticket heads ≤4; if the accused is `merge/<child-acceptance>`, recurse that child). Then `issue: none`. Run `python <engineering-init>/scripts/render_graph.py --issue <spec> --write`. Do not edit product code on this ticket. Notify (`hop: blocked`). Stop.
+`accept:` failed → staff acceptance implement for leave-one-out isolation per templates.md (this ticket heads ≤4; if the accused is `merge/<child-acceptance>`, recurse that child). Then `issue: none`. Do not edit product code on this ticket. Notify (`hop: blocked`). Stop.
 
 User said it already merged → confirm the default branch contains the commits → close this acceptance.
 
@@ -275,4 +278,4 @@ Else passed → **acceptance manage** opens a PR from `engineering:heads` (one h
 
 If this acceptance is a bugfix: after close, list downstream with `paused-by` this acceptance; notify (`suggested next: 决策` resume). Do not 分发 those downstream tickets.
 
-After closing acceptance: tree `issue: none`. Staff acceptance implement to remove merged implement trees and the acceptance tree per worktree.md. Run `python <engineering-init>/scripts/render_graph.py --issue <spec> --write` (spec = `Part of #<n>` on this ticket). Script fail → **fail**. Notify (`hop: done`). Stop.
+After closing acceptance: tree `issue: none`. Staff acceptance implement to remove merged implement trees and the acceptance tree per worktree.md. Notify (`hop: done`). Stop.
