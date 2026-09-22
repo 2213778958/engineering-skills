@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 STAGES = (
     ("render_graph_refs", (sys.executable, "engineering-init/scripts/test_render_graph_refs.py")),
     ("watch", (sys.executable, "openhands-watch/scripts/test_watch.py")),
+    ("verify", (sys.executable, "engineering-init/scripts/test_verify.py")),
 )
 TIMEOUT_EXIT_CODE = 124
 
@@ -98,10 +99,17 @@ def run_stage(name: str, command: tuple[str, ...], timeout: float) -> int:
     return returncode
 
 
-def run_verification(render_timeout: float, watch_timeout: float) -> int:
-    """Run both verification stages serially and stop at the first failure."""
-    for (name, command), timeout in zip(STAGES, (render_timeout, watch_timeout)):
-        returncode = run_stage(name, command, timeout)
+def run_verification(stage_timeouts: dict[str, float]) -> int:
+    """Run all verification stages serially and stop at the first failure.
+
+    Args:
+        stage_timeouts: Mapping from stage name to its timeout in seconds.
+
+    Returns:
+        The first non-zero stage return code, or 0 when all stages pass.
+    """
+    for name, command in STAGES:
+        returncode = run_stage(name, command, stage_timeouts[name])
         if returncode != 0:
             return returncode
     return 0
@@ -123,11 +131,18 @@ def main() -> int:
                         help="render_graph_refs stage timeout (seconds)")
     parser.add_argument("--watch-timeout", type=_positive_timeout,
                         help="watch stage timeout (seconds)")
+    parser.add_argument("--verify-timeout", type=_positive_timeout,
+                        help="verify stage timeout (seconds)")
     args = parser.parse_args()
-    return run_verification(
-        args.render_timeout if args.render_timeout is not None else args.timeout,
-        args.watch_timeout if args.watch_timeout is not None else args.timeout,
-    )
+    stage_timeouts = {
+        "render_graph_refs": args.render_timeout,
+        "watch": args.watch_timeout,
+        "verify": args.verify_timeout,
+    }
+    return run_verification({
+        name: args.timeout if timeout is None else timeout
+        for name, timeout in stage_timeouts.items()
+    })
 
 
 if __name__ == "__main__":
