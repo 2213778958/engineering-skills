@@ -13,9 +13,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 STAGES = (
-    ("render_graph_refs", (sys.executable, "engineering-init/scripts/test_render_graph_refs.py")),
     ("watch", (sys.executable, "openhands-watch/scripts/test_watch.py")),
     ("verify", (sys.executable, "engineering-init/scripts/test_verify.py")),
+    ("guard", (sys.executable, "engineering-init/scripts/test_no_render_mandates.py")),
 )
 TIMEOUT_EXIT_CODE = 124
 
@@ -127,17 +127,17 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--timeout", type=_positive_timeout, default=60.0,
                         help="default timeout for each stage (seconds)")
-    parser.add_argument("--render-timeout", type=_positive_timeout,
-                        help="render_graph_refs stage timeout (seconds)")
     parser.add_argument("--watch-timeout", type=_positive_timeout,
                         help="watch stage timeout (seconds)")
     parser.add_argument("--verify-timeout", type=_positive_timeout,
                         help="verify stage timeout (seconds)")
+    parser.add_argument("--guard-timeout", type=_positive_timeout,
+                        help="guard stage timeout (seconds)")
     args = parser.parse_args()
     stage_timeouts = {
-        "render_graph_refs": args.render_timeout,
         "watch": args.watch_timeout,
         "verify": args.verify_timeout,
+        "guard": args.guard_timeout,
     }
     return run_verification({
         name: args.timeout if timeout is None else timeout
