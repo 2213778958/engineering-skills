@@ -11,6 +11,7 @@ socket-level behavior that cannot be observed through a patched ``api``.
 """
 from __future__ import annotations
 import argparse
+import http.server
 import importlib.util
 import io
 import json
@@ -18,6 +19,7 @@ import os
 import re
 import shutil
 import socketserver
+import subprocess
 import sys
 import tempfile
 import threading
@@ -889,6 +891,220 @@ class NotifyIdentityTests(LedgerIsolatedTestCase):
                     self.notify_args(), self.parent_conv(), PARENT
                 )
         self.assertEqual(self.posts, [])
+
+
+class ControlledHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
+    """Deterministic local HTTP adapter fixture for subprocess tests."""
+
+    daemon_threads = True
+
+
+class ControlledHTTPHandler(http.server.BaseHTTPRequestHandler):
+    """Serve the minimal conversation API used by the CLI operations."""
+
+    server: ControlledHTTPServer
+
+    def log_message(self, format: str, *args: object) -> None:
+        return
+
+    def _json(self, status: int, payload: dict) -> None:
+        data = json.dumps(payload).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+    def do_GET(self) -> None:
+        self.server.requests.append(("GET", self.path))
+        conversations = {
+            f"/api/conversations/{PARENT}": {
+                "id": PARENT,
+                "workspace": {
+                    "kind": "LocalWorkspace",
+                    "working_dir": self.server.working_dir,
+                },
+                "tags": {"clientsource": "agentcanvas"},
+            },
+            f"/api/conversations/{CHILD}": {
+                "id": CHILD,
+                "workspace": {
+                    "kind": "LocalWorkspace",
+                    "working_dir": self.server.working_dir,
+                },
+                "tags": {
+                    "clientsource": "agentcanvas",
+                    "department": "delivery",
+                },
+                "parent_conversation_id": PARENT,
+                "status": "finished",
+            },
+        }
+        payload = conversations.get(self.path)
+        if payload is None:
+            self._json(404, {"detail": "not found"})
+        else:
+            self._json(200, payload)
+
+    def do_POST(self) -> None:
+        length = int(self.headers.get("Content-Length", "0"))
+        body = self.rfile.read(length) if length else b""
+        self.server.requests.append(("POST", self.path, body))
+        if self.path == "/api/conversations":
+            self._json(200, {"id": CHILD, "conversation_id": CHILD})
+        elif self.path.endswith("/events"):
+            self._json(200, {"accepted": True})
+        else:
+            self._json(404, {"detail": "not found"})
+
+
+class ProcessCompletionAcceptanceTests(unittest.TestCase):
+    """Verify real HTTP adapter and CLI process completion semantics."""
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.mkdtemp(prefix="spawn41-http-")
+        self.working_dir = os.path.join(self.tmp, "project")
+        os.makedirs(self.working_dir)
+        self.server = ControlledHTTPServer(("127.0.0.1", 0), ControlledHTTPHandler)
+        self.server.working_dir = self.working_dir
+        self.server.requests = []
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+
+    def tearDown(self) -> None:
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=2)
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def run_cli(self, *arguments: str) -> dict:
+        environment = os.environ.copy()
+        environment.update(
+            {
+                "OPENHANDS_URL": (
+                    f"http://127.0.0.1:{self.server.server_address[1]}"
+                ),
+                "OPENHANDS_UI": "http://127.0.0.1:3001",
+                "OPENHANDS_CONVERSATION_ID": "",
+                "CONVERSATION_ID": "",
+                "OPENHANDS_DISPATCH_LEDGER_DIR": os.path.join(
+                    self.tmp, "ledger"
+                ),
+            }
+        )
+        completed = subprocess.run(
+            [sys.executable, str(MODULE_PATH), *arguments],
+            cwd=self.working_dir,
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        self.assertEqual(
+            completed.returncode,
+            0,
+            msg=f"CLI failed: stdout={completed.stdout!r} stderr={completed.stderr!r}",
+        )
+        self.assertEqual(completed.stderr, "")
+        decoder = json.JSONDecoder()
+        remaining = completed.stdout.lstrip()
+        reports = []
+        while remaining:
+            report, end = decoder.raw_decode(remaining)
+            reports.append(report)
+            remaining = remaining[end:].lstrip()
+        self.assertGreaterEqual(len(reports), 2)
+        for report in reports:
+            self.assertEqual(report["receipt"], "accepted")
+            self.assertIn("evidence", report)
+        return reports[-1]
+
+    def write_prompt(self, name: str, text: str) -> str:
+        path = os.path.join(self.tmp, name)
+        Path(path).write_text(text, encoding="utf-8")
+        return path
+
+    def test_dispatch_resume_notify_are_real_processes_with_no_post_success_calls(self) -> None:
+        dispatch_prompt = self.write_prompt("dispatch.txt", "dispatch ticket #41")
+        dispatch = self.run_cli(
+            "--mode",
+            "dispatch",
+            "--this-id",
+            PARENT,
+            "--profile-id",
+            PROFILE,
+            "--department",
+            "delivery",
+            "--ticket",
+            "#41",
+            "--request-id",
+            "req-dispatch",
+            "--prompt-file",
+            dispatch_prompt,
+            "--poll-sec",
+            "0",
+        )
+        self.assertEqual(dispatch["receipt"], "accepted")
+        self.assertEqual(dispatch["operation"], "dispatch")
+        self.assertEqual(
+            self.server.requests[-1][0:2], ("POST", "/api/conversations")
+        )
+
+        resume_prompt = self.write_prompt("resume.txt", "resume ticket #41")
+        resume = self.run_cli(
+            "--mode",
+            "resume",
+            "--this-id",
+            PARENT,
+            "--target-id",
+            CHILD,
+            "--ticket",
+            "#41",
+            "--request-id",
+            "req-resume",
+            "--prompt-file",
+            resume_prompt,
+            "--poll-sec",
+            "0",
+        )
+        self.assertEqual(resume["receipt"], "accepted")
+        self.assertEqual(resume["operation"], "resume")
+        self.assertEqual(self.server.requests[-1][0:2], ("POST", f"/api/conversations/{CHILD}/events"))
+
+        report = self.write_prompt(
+            "report.txt",
+            "engineering:report\ndepartment: delivery\nticket: #41\n"
+            "hop: done\nrequest: req-dispatch\n",
+        )
+        notify = self.run_cli(
+            "--mode",
+            "notify",
+            "--this-id",
+            CHILD,
+            "--ticket",
+            "#41",
+            "--request-id",
+            "req-notify",
+            "--related-request-id",
+            "req-dispatch",
+            "--prompt-file",
+            report,
+            "--poll-sec",
+            "0",
+        )
+        self.assertEqual(notify["receipt"], "accepted")
+        self.assertEqual(notify["operation"], "notify")
+        self.assertEqual(
+            self.server.requests[-1][0:2],
+            ("POST", f"/api/conversations/{PARENT}/events"),
+        )
+
+        for operation in (dispatch, resume, notify):
+            self.assertIsInstance(operation["evidence"], str)
+            self.assertTrue(operation["evidence"])
+        self.assertNotIn("/run", [request[1] for request in self.server.requests])
+
 
 
 class CompletionSemanticsTests(LedgerIsolatedTestCase):
