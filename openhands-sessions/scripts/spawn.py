@@ -42,6 +42,11 @@ PROFILE_ID_HELP = (
     "Agent Canvas profile UUID (GET /api/agent-profiles, key 'profiles'), "
     "not the profile name"
 )
+# Read window for event POSTs (notify/resume). A short window can let the
+# backend persist the event but lose the HTTP response, which forces an
+# unknown receipt and a duplicate-prone re-send; 180s matches the other
+# long-timeout calls (dispatch create, child GET).
+EVENT_POST_TIMEOUT = 180
 
 
 def session_key() -> str:
@@ -918,6 +923,120 @@ def send_event(
     )
 
 
+def event_text_blob(event: object) -> str:
+    """Flatten the persisted text fragments of one event into one string.
+
+    Args:
+        event: Persisted event payload (role-style or kind-style shape).
+
+    Returns:
+        Concatenated text content; empty when the event carries no text.
+    """
+    if not isinstance(event, dict):
+        return ""
+    parts: list[str] = []
+
+    def walk(node: object) -> None:
+        if isinstance(node, str):
+            parts.append(node)
+            return
+        if isinstance(node, list):
+            for item in node:
+                walk(item)
+            return
+        if isinstance(node, dict):
+            text = node.get("text")
+            if isinstance(text, str):
+                parts.append(text)
+                return
+            for key in ("content", "message"):
+                if key in node:
+                    walk(node[key])
+
+    walk(event)
+    return "\n".join(part for part in parts if part)
+
+
+def target_event_texts(cid: str) -> list[str]:
+    """Read the target conversation's recent events as text blobs.
+
+    Args:
+        cid: Conversation whose persisted events are read.
+
+    Returns:
+        One text blob per event, best-effort. An unreadable events endpoint
+        (missing, rejected, timed out) yields an empty list so callers treat
+        delivery as unproven and keep the bounded re-send as the fallback.
+    """
+    try:
+        payload = api("GET", f"/api/conversations/{cid}/events")
+    except (SystemExit, TimeoutError):
+        return []
+    items: list[object] = []
+    if isinstance(payload, list):
+        items = payload
+    elif isinstance(payload, dict) and isinstance(payload.get("items"), list):
+        items = payload["items"]
+    blobs = [event_text_blob(event) for event in items]
+    return [blob for blob in blobs if blob]
+
+
+def event_marker(text: str) -> str:
+    """Return the persisted-event marker that proves this request landed.
+
+    The report/continuation text is persisted verbatim (role-style event
+    payload), so the exact stripped text doubles as the delivery marker:
+    matching it proves this very text landed, not just a sibling report
+    carrying the same ``request:`` correlation line from the same hop.
+
+    Args:
+        text: Report or continuation text that was posted.
+
+    Returns:
+        The stripped text used as the events marker.
+    """
+    return text.strip()
+
+
+def reconcile_event_marker(
+    target_id: str, text: str, ctx: dict, entry: dict
+) -> str:
+    """Reconcile an unknown event receipt against the target's events.
+
+    GETs the target conversation's recent events and searches for this
+    request's marker (see event_marker). Marker found means the earlier
+    POST persisted despite the lost response; a reconciled accepted receipt
+    is recorded and no re-send fires. Marker absent keeps the single
+    bounded re-send as the liveness fallback.
+
+    Args:
+        target_id: Conversation the event was posted to (and read back).
+        text: Report or continuation text that was posted.
+        ctx: Receipt context fields.
+        entry: Prior ledger entry (status unknown) to preserve attempts on.
+
+    Returns:
+        "reconciled" when prior delivery is proven (receipt emitted, ledger
+        updated), "resend" when delivery remains unproven.
+    """
+    marker = event_marker(text)
+    found = bool(marker) and any(
+        marker in blob for blob in target_event_texts(target_id)
+    )
+    if not found:
+        return "resend"
+    emit_receipt(
+        reconciled_receipt(
+            "unknown", "text marker found in target events", ctx
+        )
+    )
+    updated = dict(entry)
+    updated["status"] = "accepted"
+    updated["evidence"] = "reconciled from unknown: marker in target events"
+    record_ledger(ctx["parent_id"], ctx["request_id"], updated)
+    return "reconciled"
+
+
 def refuse_duplicate_from_ledger(
     parent_id: str,
     department: str,
@@ -1299,15 +1418,18 @@ def resume_rejection(
 
 
 def reconcile_resume_entry(
-    this_id: str, entry: dict, ctx: dict, state: str
+    target_id: str, this_id: str, entry: dict, ctx: dict, state: str, text: str = ""
 ) -> str:
     """Reconcile an unknown resume receipt against the target lifecycle.
 
     Args:
+        target_id: Conversation the continuation event was posted to.
         this_id: Parent conversation UUID (ledger key).
         entry: Prior resume ledger entry.
         ctx: Receipt context fields.
         state: Current lifecycle state of the target.
+        text: Continuation text of the pending event, for the events-marker
+            delivery check before the bounded re-send.
 
     Returns:
         "reconciled" when no re-send is needed, "resend" for the single
@@ -1327,6 +1449,10 @@ def reconcile_resume_entry(
         record_ledger(this_id, ctx["request_id"], updated)
         return "reconciled"
     if state in {"finished", "error"} and attempts < 2:
+        if text and reconcile_event_marker(
+            target_id, text, ctx, entry
+        ) == "reconciled":
+            return "reconciled"
         return "resend"
     emit_receipt(
         make_receipt(
@@ -1493,7 +1619,10 @@ def run_resume(args: argparse.Namespace, parent: dict, this_id: str = "") -> Non
         )
         return
     if own is not None and own.get("status") == "unknown":
-        if reconcile_resume_entry(this_id, own, ctx, state) == "reconciled":
+        if (
+            reconcile_resume_entry(target_id, this_id, own, ctx, state, text)
+            == "reconciled"
+        ):
             return
         # single bounded re-send falls through
     elif state == "running":
@@ -1530,7 +1659,7 @@ def run_resume(args: argparse.Namespace, parent: dict, this_id: str = "") -> Non
             method,
             path,
             body,
-            timeout=60,
+            timeout=EVENT_POST_TIMEOUT,
             operation="resume",
             request_id=request_id,
             ticket=ticket,
@@ -1673,6 +1802,16 @@ def run_notify(args: argparse.Namespace, parent: dict, this_id: str = "") -> Non
         if own.get("status") == "accepted":
             emit_receipt(reconciled_receipt("accepted", "identical replay", ctx))
             return
+        if own.get("status") == "unknown":
+            # Reconcile before the bounded re-send (#51): a lost response
+            # may have still persisted; never duplicate a delivered report.
+            # This runs before the attempts gate so a proven delivery
+            # reconciles even at exhaustion (dedup beats the bound).
+            if (
+                reconcile_event_marker(target_id, text, ctx, own)
+                == "reconciled"
+            ):
+                return
         if int(own.get("attempts", 0)) >= 2:
             emit_receipt(
                 make_receipt(
@@ -1682,6 +1821,7 @@ def run_notify(args: argparse.Namespace, parent: dict, this_id: str = "") -> Non
                 )
             )
             raise SystemExit(1)
+        # single bounded re-send falls through
     payload, receipt, err = send_event(
         target_id,
         text,
@@ -1689,7 +1829,7 @@ def run_notify(args: argparse.Namespace, parent: dict, this_id: str = "") -> Non
             method,
             path,
             body,
-            timeout=60,
+            timeout=EVENT_POST_TIMEOUT,
             operation="notify",
             request_id=request_id,
             ticket=ticket,
