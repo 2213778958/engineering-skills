@@ -203,7 +203,6 @@ def merge_deps(meta: dict[str, Any], owner_repo: str, number: int) -> tuple[list
 
 def collect(spec: int, owner_repo: str) -> dict[int, dict[str, Any]]:
     seeds = {spec}
-    seeds.update(sub_issue_numbers(owner_repo, spec))
     seeds.update(part_of_children(spec, owner_repo))
     spec_meta = view_issue(spec, owner_repo)
     seeds.update(body_refs(spec_meta.get("body") or "", spec=spec))
@@ -216,18 +215,15 @@ def collect(spec: int, owner_repo: str) -> dict[int, dict[str, Any]]:
             continue
         meta = spec_meta if n == spec else view_issue(n, owner_repo)
         blocked_by, blocking = merge_deps(meta, owner_repo, n)
+        sub_issues = sub_issue_numbers(owner_repo, n)
         meta["_blocked_by"] = blocked_by
         meta["_blocking"] = blocking
+        meta["_sub_issues"] = sub_issues
         nodes[n] = meta
-        for other in blocked_by + blocking:
+        for other in blocked_by + blocking + sub_issues:
             if other not in nodes:
                 pending.add(other)
 
-    if spec in nodes:
-        only_container = not nodes[spec]["_blocked_by"] and not nodes[spec]["_blocking"]
-        children = seeds - {spec}
-        if only_container and children:
-            del nodes[spec]
     return nodes
 
 
@@ -259,6 +255,10 @@ def mermaid(nodes: dict[int, dict[str, Any]]) -> str:
         for blocker in meta["_blocked_by"]:
             if blocker in nodes:
                 lines.append(f"i{blocker} --> i{n}")
+    for n, meta in sorted(nodes.items()):
+        for child in meta.get("_sub_issues", []):
+            if child in nodes:
+                lines.append(f"i{n} -.-> i{child}")
     lines.append("")
     for n, meta in sorted(nodes.items()):
         url = meta.get("url") or ""
