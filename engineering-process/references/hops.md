@@ -6,7 +6,7 @@ Read and run [rules.md](rules.md), [supervise.md](supervise.md), and the applica
 
 Talk to the user. Tell them how to test and accept this gate (what to run or look at, what pass looks like). Help if they ask. Write comments as needed. Do not staff employees. Do not 分发. Do not notify until the person said pass or fail.
 
-Person said fail → reopen the previous implement ticket and send it back to `ready-for-agent`. Do not turn the gate ticket into `ready-for-agent`. Tree `issue: none`. Run `python <engineering-init>/scripts/render_graph.py --issue <spec> --write` (spec = `Part of #<n>` on this ticket). Script fail → **fail**. Notify (`hop: send-back`, suggested next 分发 delivery). Person said the phenomenon passed → close **this** gate or sink, `issue: none`, run the same graph write, notify (`hop: done`).
+Person said fail → reopen the previous implement ticket and send it back to `ready-for-agent`. Do not turn the gate ticket into `ready-for-agent`. Tree `issue: none`. Notify (`hop: send-back`, suggested next 分发 delivery). Person said the phenomenon passed → close **this** gate or sink, `issue: none`, notify (`hop: done`).
 
 ## 3b. `arbitration` (department)
 
@@ -46,7 +46,7 @@ Hand to: planning
 
 `contract` is not `ready` → stop, go to plan. Already `ready`: staff `planning implement` then `planning review` (**delegate**). Prompt implement: ticket URLs, read and run `engineering-init` **patch**, receipt (include whether spec `engineering:graph` was written). Edges changed and graph not written → receipt incomplete; do not finish. Review checks the spec flow graph has the new nodes and edges. Do not run patch in this window. No open/merge PR. No product-code edits by manage. Do not staff delivery / acceptance / arbitration employees. Wait until both receipts are in this conversation; receipts missing → do not finish. No `spawn.py`. Changing layers / breaking a cycle / migrate → stop, go to plan or migrate.
 
-Implement does the patch (verdict, new need, fill tests, pause/resume, rewrite spec `engineering:graph` when tickets or edges change). Review reviews that output and the spec graph. Manage does not edit issue bodies or `blocked-by`. Does not run `render_graph.py`.
+Implement does the patch (verdict, new need, fill tests, pause/resume, rewrite spec `engineering:graph` when tickets or edges change). Review reviews that output and the spec graph. Manage does not edit issue bodies or `blocked-by`.
 
 After implement receipt:
 
@@ -85,7 +85,7 @@ Command ran but did not cover this module, or assertions are vacuous → verify 
 
 verify=`fail` (when a command exists), both implement and review `fail`, or implement=`fail` and paths 2–3 did not fire → do not push, do not close, send back to `ready-for-agent`. Tree `issue: none`. Notify (`hop: send-back`). Stop.
 
-implement=`pass` and review=`pass` and (`verify: none` or pass) → **delivery manage** `git push -u origin HEAD` → **close this implement ticket**. Tree `issue: none`. Run `python <engineering-init>/scripts/render_graph.py --issue <spec> --write` (spec = `Part of #<n>` on this ticket). Script fail → **fail**. Notify (`hop: done`). Do not open a PR. Do not change gate-ticket edges. Stop.
+implement=`pass` and review=`pass` and (`verify: none` or pass) → **delivery manage** `git push -u origin HEAD` → **close this implement ticket**. Tree `issue: none`. Notify (`hop: done`). Do not open a PR. Do not change gate-ticket edges. Stop.
 
 Conflict / `Challenge` not `none` / user challenge → do not push; write tree `template: arbitration`; keep `issue:`; notify (`hop: need-arbitration`). Do not run 3b in this window. Next planning 推进 **分发** arbitration (tree hop already set).
 
@@ -95,7 +95,7 @@ Current ticket body has no `engineering:pr` → stop; no PR.
 
 Do not edit product code in this window. Staff implement + review + verify (**delegate**) (roles `acceptance implement` / `acceptance review` / `acceptance verify`). Wait until those receipts are in this conversation. Receipts missing → do not open/merge a PR, do not finish. implement merges `engineering:heads` and worktrees per worktree.md. `accept:` is `none` or empty → verify receipt `Verify: none`, issue comment "full suite unset", **still may open a PR**. Command present → acceptance verify runs `accept:`. Acceptance verify has no `Challenge`; do not enter 3b from this hop. Do not spawn a child conversation.
 
-`accept:` failed → staff acceptance implement for leave-one-out isolation per templates.md (this ticket heads ≤4; if the accused is `merge/<child-acceptance>`, recurse that child). Then `issue: none`. Run `python <engineering-init>/scripts/render_graph.py --issue <spec> --write`. Do not edit product code on this ticket. Notify (`hop: blocked`). Stop.
+`accept:` failed → staff acceptance implement for leave-one-out isolation per templates.md (this ticket heads ≤4; if the accused is `merge/<child-acceptance>`, recurse that child). Then `issue: none`. Do not edit product code on this ticket. Notify (`hop: blocked`). Stop.
 
 User said it already merged → confirm the default branch contains the commits → close this acceptance.
 
@@ -103,4 +103,4 @@ Else passed → **acceptance manage** opens a PR from `engineering:heads` (one h
 
 If this acceptance is a bugfix: after close, list downstream with `paused-by` this acceptance; notify (`suggested next: 决策` resume). Do not 分发 those downstream tickets.
 
-After closing acceptance: tree `issue: none`. Staff acceptance implement to remove merged implement trees and the acceptance tree per worktree.md. Run `python <engineering-init>/scripts/render_graph.py --issue <spec> --write` (spec = `Part of #<n>` on this ticket). Script fail → **fail**. Notify (`hop: done`). Stop.
+After closing acceptance: tree `issue: none`. Staff acceptance implement to remove merged implement trees and the acceptance tree per worktree.md. Notify (`hop: done`). Stop.
