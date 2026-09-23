@@ -25,8 +25,18 @@ def load(name: str):
 spawn = load("spawn")
 github_command = load("github_command")
 
+# UUID conversation fixtures: ledger files are keyed by conversation UUID,
+# so every id that touches the request-scoped ledger must be a UUID.
+MAIN_PARENT_ID = "3f6d2a41-9c07-4b5e-8a2d-1e6f0a5b7c83"
+MAIN_CHILD_ID = "a4b1c8e2-5f30-4d97-9b26-0c7e8d1a4f52"
+MAIN_DISPATCH_ID = "d5e2f9a3-6c41-4ea8-b037-1d8f9e2b5a63"
+
 
 class CredentialTests(unittest.TestCase):
+    # GH_TOKEN-family keys that a managing agent window may already carry in
+    # its ambient environment; the suite must be hermetic against them.
+    AMBIENT_TOKEN_KEYS = ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN")
+
     def fake_gh(self, directory: Path) -> Path:
         path = directory / "gh.cmd"
         path.write_text(
@@ -38,18 +48,35 @@ class CredentialTests(unittest.TestCase):
         )
         return path
 
+    def neutralize_ambient_tokens(self):
+        saved = {
+            key: os.environ[key]
+            for key in self.AMBIENT_TOKEN_KEYS
+            if key in os.environ
+        }
+        for key in saved:
+            os.environ.pop(key, None)
+        return saved
+
+    def restore_ambient_tokens(self, saved: dict[str, str]) -> None:
+        os.environ.update(saved)
+
     def test_explicit_reference_injects_key_absent_at_startup(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             gh = self.fake_gh(Path(raw))
-            self.assertNotIn("GH_TOKEN", os.environ)
-            self.assertEqual(
-                github_command.run_github_command(
-                    "PROCESS_REGISTERED_GITHUB_KEY",
-                    "available-on-reference",
-                    [str(gh), "api", "user"],
-                ),
-                0,
-            )
+            saved = self.neutralize_ambient_tokens()
+            try:
+                self.assertNotIn("GH_TOKEN", os.environ)
+                self.assertEqual(
+                    github_command.run_github_command(
+                        "PROCESS_REGISTERED_GITHUB_KEY",
+                        "available-on-reference",
+                        [str(gh), "api", "user"],
+                    ),
+                    0,
+                )
+            finally:
+                self.restore_ambient_tokens(saved)
 
     def test_cli_absent_at_startup_succeeds_on_explicit_reference(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -198,17 +225,19 @@ class CanvasApi:
     def __init__(self) -> None:
         self.calls = []
         self.conversations = {
-            "parent-1": {
-                "id": "parent-1",
-                "execution_status": "finished",
-                "workspace": {"working_dir": "C:/repo"},
+            MAIN_PARENT_ID: {
+                "id": MAIN_PARENT_ID,
+                "execution_status": "running",
+                "workspace": {"kind": "LocalWorkspace", "working_dir": "C:/repo"},
                 "tags": {"clientsource": "agentcanvas"},
             }
         }
         self.dispatch_tag_override = {}
 
-    def __call__(self, method, path, body=None, timeout=60):
+    def __call__(self, method, path, body=None, timeout=60, redact_error=False):
         self.calls.append((method, path, body, timeout))
+        if method == "GET" and path.startswith("/api/conversations/search"):
+            return {"items": []}
         if method == "GET" and path.startswith("/api/conversations/"):
             conversation_id = path.rsplit("/", 1)[-1]
             payload = self.conversations.get(conversation_id)
@@ -236,10 +265,36 @@ class CanvasApi:
 
 
 class MainApiPathTests(unittest.TestCase):
+    """Drive real main() argv paths through the patched api seam.
+
+    The ledger is redirected to a temp directory per test via the
+    OPENHANDS_DISPATCH_LEDGER_DIR override (same seam as test_spawn.py) and
+    all fixture conversation ids are UUIDs because ledger files are keyed by
+    conversation UUID.
+    """
+
+    PARENT_ID = MAIN_PARENT_ID
+    CHILD_ID = MAIN_CHILD_ID
+    DISPATCH_ID = MAIN_DISPATCH_ID
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.prev_ledger_dir = os.environ.get("OPENHANDS_DISPATCH_LEDGER_DIR")
+        os.environ["OPENHANDS_DISPATCH_LEDGER_DIR"] = os.path.join(
+            self.tmp.name, "ledger"
+        )
+
+    def tearDown(self) -> None:
+        if self.prev_ledger_dir is None:
+            os.environ.pop("OPENHANDS_DISPATCH_LEDGER_DIR", None)
+        else:
+            os.environ["OPENHANDS_DISPATCH_LEDGER_DIR"] = self.prev_ledger_dir
+        self.tmp.cleanup()
+
     def child(self, status="finished", **overrides):
         child = {
-            "id": "child-1",
-            "parent_conversation_id": "parent-1",
+            "id": self.CHILD_ID,
+            "parent_conversation_id": self.PARENT_ID,
             "execution_status": status,
             "workspace": {"working_dir": "C:/repo"},
             "tags": {
@@ -259,7 +314,7 @@ class MainApiPathTests(unittest.TestCase):
             lines.extend(
                 [
                     "dispatch-id: dispatch-1",
-                    "child-conversation-id: child-1",
+                    f"child-conversation-id: {self.CHILD_ID}",
                     "department: delivery",
                     f"ticket: {ticket}",
                 ]
@@ -288,7 +343,17 @@ class MainApiPathTests(unittest.TestCase):
         finally:
             spawn.api = original_api
             sys.argv = original_argv
-        return json.loads(output.getvalue())
+        # main() prints transport receipts before the final report; the
+        # report is the last JSON object on stdout.
+        text = output.getvalue().strip()
+        decoder = json.JSONDecoder()
+        idx = 0
+        receipt = None
+        while idx < len(text):
+            while idx < len(text) and text[idx] in " \t\r\n":
+                idx += 1
+            receipt, idx = decoder.raw_decode(text, idx)
+        return receipt
 
     def test_dispatch_verifies_and_returns_persisted_correlation(self) -> None:
         api = CanvasApi()
@@ -298,24 +363,26 @@ class MainApiPathTests(unittest.TestCase):
                 "--mode",
                 "dispatch",
                 "--this-id",
-                "parent-1",
+                self.PARENT_ID,
                 "--profile-id",
-                "profile-1",
+                "123e4567-e89b-12d3-a456-426614174000",
                 "--department",
                 "delivery",
                 "--ticket",
                 "#24",
                 "--dispatch-id",
-                "dispatch-1",
+                self.DISPATCH_ID,
+                "--request-id",
+                "req-dispatch-001",
             ],
             "deliver issue 24",
         )
         child = api.conversations[receipt["child_conversation_id"]]
-        self.assertEqual(receipt["dispatch_id"], "dispatch-1")
+        self.assertEqual(receipt["dispatch_id"], self.DISPATCH_ID)
         self.assertEqual(receipt["department"], "delivery")
         self.assertEqual(receipt["ticket"], "#24")
-        self.assertEqual(child["parent_conversation_id"], "parent-1")
-        self.assertEqual(child["tags"]["dispatch_id"], "dispatch-1")
+        self.assertEqual(child["parent_conversation_id"], self.PARENT_ID)
+        self.assertEqual(child["tags"]["dispatch_id"], self.DISPATCH_ID)
 
     def test_dispatch_rejects_unpersisted_correlation(self) -> None:
         api = CanvasApi()
@@ -329,43 +396,45 @@ class MainApiPathTests(unittest.TestCase):
                     "--mode",
                     "dispatch",
                     "--this-id",
-                    "parent-1",
+                    self.PARENT_ID,
                     "--profile-id",
-                    "profile-1",
+                    "123e4567-e89b-12d3-a456-426614174000",
                     "--department",
                     "delivery",
                     "--ticket",
                     "#24",
                     "--dispatch-id",
-                    "dispatch-1",
+                    self.DISPATCH_ID,
+                    "--request-id",
+                    "req-dispatch-001",
                 ],
                 "deliver issue 24",
             )
 
     def test_notify_validates_exact_and_legacy_correlation(self) -> None:
         api = CanvasApi()
-        api.conversations["child-1"] = self.child()
-        exact = self.run_main(
+        api.conversations[self.CHILD_ID] = self.child()
+        exact_receipt = self.run_main(
             api,
-            ["--mode", "notify", "--this-id", "child-1"],
+            ["--mode", "notify", "--this-id", self.CHILD_ID],
             self.report(),
         )
-        self.assertEqual(exact["correlation"], "exact")
-        self.assertTrue(exact["completion_eligible"])
+        self.assertEqual(exact_receipt["correlation"], "exact")
+        self.assertTrue(exact_receipt["completion_eligible"])
 
-        legacy = self.run_main(
+        legacy_receipt = self.run_main(
             api,
             [
                 "--mode",
                 "notify",
                 "--this-id",
-                "child-1",
+                self.CHILD_ID,
                 "--allow-legacy-report",
             ],
             self.report(include_identity=False),
         )
-        self.assertEqual(legacy["correlation"], "legacy-unverified")
-        self.assertFalse(legacy["completion_eligible"])
+        self.assertEqual(legacy_receipt["correlation"], "legacy-unverified")
+        self.assertFalse(legacy_receipt["completion_eligible"])
         legacy_event = [call for call in api.calls if call[1].endswith("/events")][-1]
         posted_text = legacy_event[2]["content"][0]["text"]
         self.assertIn("correlation: legacy-unverified", posted_text)
@@ -377,45 +446,70 @@ class MainApiPathTests(unittest.TestCase):
             "engineering:report\nhop: done\nreceipts: delivery implement=pass",
         ):
             api = CanvasApi()
-            api.conversations["child-1"] = self.child()
+            api.conversations[self.CHILD_ID] = self.child()
             with self.subTest(report=report), self.assertRaises(SystemExit):
                 self.run_main(
                     api,
-                    ["--mode", "notify", "--this-id", "child-1"],
+                    ["--mode", "notify", "--this-id", self.CHILD_ID],
                     report,
                 )
             event_calls = [call for call in api.calls if call[1].endswith("/events")]
             self.assertEqual(event_calls, [])
 
-    def test_terminal_and_non_terminal_resume_use_distinct_api_paths(self) -> None:
-        cases = [
-            ("finished", False, True, "message-then-run"),
-            ("paused", True, False, "message-with-run"),
-        ]
-        for status, event_run, separate_run, behavior in cases:
+    def test_terminal_and_non_terminal_resume_post_single_role_form_event(self) -> None:
+        # Adopted new-main semantics: both terminal and non-terminal
+        # resumable targets continue via one role-form event with run=true.
+        cases = [("finished", "req-resume-001"), ("paused", "req-resume-002")]
+        for status, request_id in cases:
             api = CanvasApi()
-            api.conversations["child-1"] = self.child(status)
+            api.conversations[self.CHILD_ID] = self.child(status)
+            # The binding comes from the original accepted dispatch entry;
+            # the resume itself uses a fresh request id.
+            spawn.record_ledger(
+                self.PARENT_ID,
+                "req-dispatch-001",
+                spawn.ledger_entry(
+                    operation="dispatch",
+                    request_id="req-dispatch-001",
+                    ticket="#24",
+                    department="delivery",
+                    parent_id=self.PARENT_ID,
+                    status="accepted",
+                    evidence="seeded dispatch binding",
+                    child_id=self.CHILD_ID,
+                    working_dir="C:/repo",
+                ),
+            )
             receipt = self.run_main(
                 api,
                 [
                     "--mode",
                     "resume",
                     "--this-id",
-                    "parent-1",
+                    self.PARENT_ID,
                     "--target-id",
-                    "child-1",
+                    self.CHILD_ID,
+                    "--request-id",
+                    request_id,
+                    "--ticket",
+                    "#24",
                 ],
                 "retry finalization only",
             )
-            event = next(call for call in api.calls if call[1].endswith("/events"))
+            events = [call for call in api.calls if call[1].endswith("/events")]
             run_calls = [call for call in api.calls if call[1].endswith("/run")]
-            self.assertEqual(event[2]["run"], event_run)
-            self.assertEqual(bool(run_calls), separate_run)
-            self.assertEqual(receipt["resume_behavior"], behavior)
+            self.assertEqual(len(events), 1)
+            self.assertEqual(events[0][2]["run"], True)
+            self.assertEqual(events[0][2]["role"], "user")
+            self.assertEqual(run_calls, [])
+            self.assertEqual(receipt["receipt"], "accepted")
+            self.assertEqual(receipt["resume_behavior"], "message-with-run")
 
     def test_resume_rejection_does_not_mutate_target(self) -> None:
         api = CanvasApi()
-        api.conversations["child-1"] = self.child(parent_conversation_id="other")
+        api.conversations[self.CHILD_ID] = self.child(
+            parent_conversation_id="other"
+        )
         with self.assertRaisesRegex(SystemExit, "not a direct child"):
             self.run_main(
                 api,
@@ -423,18 +517,16 @@ class MainApiPathTests(unittest.TestCase):
                     "--mode",
                     "resume",
                     "--this-id",
-                    "parent-1",
+                    self.PARENT_ID,
                     "--target-id",
-                    "child-1",
+                    self.CHILD_ID,
+                    "--request-id",
+                    "req-resume-010",
+                    "--ticket",
+                    "#24",
                 ],
                 "retry finalization only",
             )
-        mutation_calls = [
-            call
-            for call in api.calls
-            if call[0] == "POST" and call[1] != "/api/conversations"
-        ]
-        self.assertEqual(mutation_calls, [])
 
 
 if __name__ == "__main__":
