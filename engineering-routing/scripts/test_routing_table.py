@@ -28,7 +28,12 @@ ENABLED = (
     "engineering-process",
     "openhands-sessions",
 )
-REGISTERED = ("engineering-routing", "openhands-watch", "skill-maker")
+REGISTERED = (
+    "engineering-research",
+    "engineering-routing",
+    "openhands-watch",
+    "skill-maker",
+)
 HEADER = "| skill | state | group | entry | uses |"
 SEPARATOR = "|---|---|---|---|---|"
 
@@ -67,13 +72,14 @@ class RepoRoutingTableTests(unittest.TestCase):
         self.rows = routing_table.load_table()
 
     def test_real_table_parses_all_rows(self) -> None:
-        self.assertEqual(len(self.rows), 7)
+        self.assertEqual(len(self.rows), 8)
         self.assertEqual(
             tuple(row.skill for row in self.rows),
             (
                 "datasheet-headers",
                 "engineering-init",
                 "engineering-process",
+                "engineering-research",
                 "engineering-routing",
                 "openhands-sessions",
                 "openhands-watch",

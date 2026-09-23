@@ -24,6 +24,7 @@ NAME_LINE = re.compile(r"^name:\s*(?P<name>.+?)\s*$", re.MULTILINE)
 EXPECTED_SERIES = (
     "engineering-init",
     "engineering-process",
+    "engineering-research",
     "engineering-routing",
     "openhands-sessions",
     "openhands-watch",
