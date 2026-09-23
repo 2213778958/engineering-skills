@@ -22,7 +22,9 @@ ROOT = Path(__file__).resolve().parents[2]
 class StagesTests(unittest.TestCase):
     def test_no_render_stage(self) -> None:
         names = [name for name, _ in verify.STAGES]
-        self.assertEqual(names, ["watch", "route", "verify", "guard", "process"])
+        self.assertEqual(
+            names, ["watch", "route", "registry", "verify", "guard", "process"]
+        )
 
     def test_stage_scripts_exist(self) -> None:
         for _, command in verify.STAGES:
@@ -35,6 +37,12 @@ class StagesTests(unittest.TestCase):
     def test_route_stage_is_routing_table(self) -> None:
         route = dict(verify.STAGES)["route"]
         self.assertEqual(route[1], "engineering-routing/scripts/test_routing_table.py")
+
+    def test_registry_stage_is_routing_registry(self) -> None:
+        registry = dict(verify.STAGES)["registry"]
+        self.assertEqual(
+            registry[1], "engineering-init/scripts/test_routing_registry.py"
+        )
 
     def test_process_stage_is_source_markers(self) -> None:
         process = dict(verify.STAGES)["process"]
@@ -129,7 +137,10 @@ class RunStageTests(unittest.TestCase):
 
     def test_stage_timeouts_covers_stages(self) -> None:
         timeouts = {name: 1.0 for name, _ in verify.STAGES}
-        self.assertEqual(sorted(timeouts), ["guard", "process", "route", "verify", "watch"])
+        self.assertEqual(
+            sorted(timeouts),
+            ["guard", "process", "registry", "route", "verify", "watch"],
+        )
 
 
 if __name__ == "__main__":
