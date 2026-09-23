@@ -22,7 +22,7 @@ Pick one mode from the request. Do not treat every call as dispatch.
 | **notify** | Other department **manage** hop finished | Report posted to the parent planning conversation and `run`. Planning window URL printed. No parent → **fail** |
 | **delegate** | **Employee** work (implement / review / verify / extract / planning review) | Task ended in this conversation; receipt returned. Background Task → **fail**. No Task → **fail**; do not spawn a child instead |
 
-Task-type routing (who should work) is `engineering-routing`. If the user asked to pick by task type and routing did not already call this skill → read and run `engineering-routing`. If routing already called this skill, or the user named a profile/model → only the named mode.
+Task-type routing (who should work) is `engineering-routing`, which may dispatch only to rows whose state is `enabled` in `engineering-routing/references/routing-table.md`; a `registered` row is not routable. If the user asked to pick by task type and routing did not already call this skill → read and run `engineering-routing`. If routing already called this skill, or the user named a profile/model → only the named mode.
 
 This copy runs on the **ACP bridge**. A **department** (including planning) may be a **model** on this bridge (e.g. grok). Do not call that window "ACP". **Employees** = **delegate**. Do not rewrite `delegate` to `dispatch`. No Task here → **fail** delegate; do not spawn a child instead. Do not 分发 an employee.
 
@@ -33,7 +33,7 @@ This copy runs on the **ACP bridge**. A **department** (including planning) may 
 3. Hosts: backend `http://localhost:8000`, UI `http://localhost:3001`.
 4. Windows: PowerShell 5.1. Write `.py` files for HTTP. Do not rely on `curl.exe` flags.
 5. Do not copy this POST into other skills. Do not write a local `dispatch_session.py`. Hand-written `POST` / `GET` / `python -c` against `/api/conversations` → **fail**. Callers: read and run this skill. Open, dispatch, and notify only via `scripts/spawn.py`. Child GET `id` missing or tags missing `clientsource=agentcanvas` after spawn → **fail**. GET `conversation_id` empty is not a failure (Canvas stores the uuid in `id`).
-6. Do not choose a profile by task type here. That is `engineering-routing`.
+6. Do not choose a profile by task type here. That is `engineering-routing`, which may dispatch only to rows whose state is `enabled` in `engineering-routing/references/routing-table.md`; a `registered` row is not routable.
 7. Do not change the engineering contract (that is `engineering-init`). Do not advance tickets (that is `engineering-process`).
 8. At most 3 concurrent dispatch children.
 
