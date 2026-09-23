@@ -16,6 +16,8 @@ STAGES = (
     ("watch", (sys.executable, "openhands-watch/scripts/test_watch.py")),
     ("verify", (sys.executable, "engineering-init/scripts/test_verify.py")),
     ("guard", (sys.executable, "engineering-init/scripts/test_no_render_mandates.py")),
+    ("sessions", (sys.executable, "openhands-sessions/scripts/test_sessions.py")),
+    ("spawn", (sys.executable, "openhands-sessions/scripts/test_spawn.py")),
 )
 TIMEOUT_EXIT_CODE = 124
 
@@ -133,11 +135,17 @@ def main() -> int:
                         help="verify stage timeout (seconds)")
     parser.add_argument("--guard-timeout", type=_positive_timeout,
                         help="guard stage timeout (seconds)")
+    parser.add_argument("--sessions-timeout", type=_positive_timeout,
+                        help="sessions stage timeout (seconds)")
+    parser.add_argument("--spawn-timeout", type=_positive_timeout,
+                        help="spawn stage timeout (seconds)")
     args = parser.parse_args()
     stage_timeouts = {
         "watch": args.watch_timeout,
         "verify": args.verify_timeout,
         "guard": args.guard_timeout,
+        "sessions": args.sessions_timeout,
+        "spawn": args.spawn_timeout,
     }
     return run_verification({
         name: args.timeout if timeout is None else timeout
