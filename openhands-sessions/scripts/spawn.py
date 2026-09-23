@@ -1457,6 +1457,14 @@ def run_dispatch(args: argparse.Namespace, parent: dict, this_id: str = "") -> N
     )
     tags = canvas_tags(parent)
     tags["department"] = department
+    # Carried correlated-session path (#24): a legacy --dispatch-id binds the
+    # created child to the ticket so a follow-up GET can verify the identity
+    # actually persisted before the dispatch is recorded as accepted.
+    dispatch_id = ""
+    if str(getattr(args, "dispatch_id", "") or "").strip():
+        dispatch_id = normalize_request_id(args.dispatch_id)
+        tags["dispatch_id"] = dispatch_id
+        tags["ticket"] = ticket
     body = conversation_body(
         child_id=child_id,
         profile_id=profile_id,
@@ -1503,6 +1511,17 @@ def run_dispatch(args: argparse.Namespace, parent: dict, this_id: str = "") -> N
         raise err
     response = payload if isinstance(payload, dict) else {}
     cid = str(response.get("id") or response.get("conversation_id") or child_id)
+    if dispatch_id:
+        # Fail-closed legacy verification: the created child must really
+        # carry the correlation identity before it is recorded as accepted.
+        validate_persisted_dispatch(
+            get_conversation(cid),
+            cid,
+            this_id,
+            dispatch_id,
+            department,
+            ticket,
+        )
     record_ledger(
         this_id,
         request_id,
@@ -1529,6 +1548,8 @@ def run_dispatch(args: argparse.Namespace, parent: dict, this_id: str = "") -> N
         "mode": "dispatch",
         "working_dir": wd,
         "this_id": this_id,
+        "dispatch_id": dispatch_id,
+        "child_conversation_id": cid,
         "github_binding": binding_status(wants_binding),
         "evidence": receipt["evidence"],
         "next_action": (
@@ -1843,6 +1864,10 @@ def run_resume(args: argparse.Namespace, parent: dict, this_id: str = "") -> Non
                 f"resume target {target_id} is in error and its single "
                 "bounded resume attempt was already used"
             )
+    elif state in NON_TERMINAL_RESUMABLE_STATES:
+        # Role-form continuation (run=true) resumes a paused/idle child too;
+        # no separate run call is needed.
+        pass
     elif state != "finished":
         reject(f"unrecognized lifecycle state {state!r}", department)
         raise SystemExit(
@@ -1911,6 +1936,7 @@ def run_resume(args: argparse.Namespace, parent: dict, this_id: str = "") -> Non
         "target_id": target_id,
         "parent_id": this_id,
         "url": f"{UI}/conversations/{target_id}",
+        "resume_behavior": "message-with-run",
         "evidence": receipt["evidence"],
         "next_action": (
             "continuation event accepted on the original department child; "
@@ -1942,10 +1968,28 @@ def run_notify(args: argparse.Namespace, parent: dict, this_id: str = "") -> Non
     layer = str(tags.get("layer") or "")
     department = str(tags.get("department") or "")
     # F1 (issue #24): only a department-layer child may hop a report to its
-    # parent. A caller that is not marked as a department child (or whose
-    # department tag is not a non-planning department) must not reach the
-    # parent event POST, whatever its stored conversation id is.
-    if layer != "department" or not department or department == "planning":
+    # parent. The child identity is either the explicit #24 layer tag or,
+    # for new-main dispatches that never wrote a layer tag, the structural
+    # child shape (the parent pointer is already required above plus
+    # clientsource=agentcanvas plus an authorized non-planning department).
+    # An explicit non-department layer (employee window) and planning
+    # departments are rejected here, before any POST.
+    if layer and layer != "department":
+        raise SystemExit(
+            "notify rejected: caller layer is not a department child "
+            f"(layer={layer!r}, department={department!r}); "
+            "notify is child->parent only"
+        )
+    if not department or department == "planning":
+        raise SystemExit(
+            "notify rejected: caller is not a department-layer child "
+            f"(layer={layer!r}, department={department!r}); "
+            "notify is child->parent only"
+        )
+    if not layer and (
+        str(tags.get("clientsource") or "") != "agentcanvas"
+        or department not in AUTHORIZED_DEPARTMENTS
+    ):
         raise SystemExit(
             "notify rejected: caller is not a department-layer child "
             f"(layer={layer!r}, department={department!r}); "

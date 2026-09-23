@@ -1018,6 +1018,16 @@ class NotifyIdentityTests(LedgerIsolatedTestCase):
                 )
         self.assertEqual(self.posts, [])
 
+    def test_employee_layer_caller_is_refused_before_post(self) -> None:
+        conv = self.child_window()
+        conv["tags"]["layer"] = "employee"
+        convs = {PARENT: {"id": PARENT, "status": "running"}}
+        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+            with self.assertRaisesRegex(SystemExit, "not a department child"):
+                spawn.run_notify(self.notify_args(), conv, CHILD)
+        self.assertEqual(self.posts, [])
+        self.assertNotIn("req-report1", spawn.load_ledger(PARENT))
+
     def test_unknown_notify_reconciles_marker_without_second_post(self) -> None:
         convs = {PARENT: {"id": PARENT, "status": "running"}}
         with patch.object(
