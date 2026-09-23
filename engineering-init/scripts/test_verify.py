@@ -32,6 +32,10 @@ class StagesTests(unittest.TestCase):
         guard = dict(verify.STAGES)["guard"]
         self.assertEqual(guard[1], "engineering-init/scripts/test_no_render_mandates.py")
 
+    def test_route_stage_is_routing_table(self) -> None:
+        route = dict(verify.STAGES)["route"]
+        self.assertEqual(route[1], "engineering-routing/scripts/test_routing_table.py")
+
     def test_process_stage_is_source_markers(self) -> None:
         process = dict(verify.STAGES)["process"]
         self.assertEqual(
