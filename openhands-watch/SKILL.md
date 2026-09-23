@@ -14,6 +14,8 @@ description: >-
 
 This skill owns child-session liveness. Spawn stays in `openhands-sessions`. Ticket advance stays in `engineering-process`.
 
+The normalized watch and session semantics are defined in [the harness capability contract](../openhands-sessions/references/capabilities.md). Provider-specific lifecycle states must be mapped to that contract before they reach engineering skills. A native harness or CLI may delegate internally, but watch does not inspect or manage that internal delegation unless it exposes a separately correlated, watchable session.
+
 | Mode | When | Done |
 |---|---|---|
 | **once** | Snapshot these child ids (default) | JSON `verdict` printed |

@@ -4,6 +4,9 @@ description: Use whenever the user asks to spawn, dispatch, notify, list, resume
 ---
 # OpenHands Sessions
 This skill is the Agent Canvas/OpenHands transport adapter. It does not decide process routing, department sequence, gates, or completion. Follow the repository's routing skill for those decisions.
+
+All session adapters must satisfy the provider-neutral capability contract in [capabilities](references/capabilities.md). Open only that reference when implementing or validating a harness adapter. A native harness or CLI may expose its own internal delegation mechanism; this is conditional and must not be confused with department dispatch.
+
 ## Shared rules
 1. Read [identity](references/identity.md) before any mode that reads or mutates a conversation or invokes GitHub.
 2. Preserve the imported workspace, Canvas identity, parent direction, and receipts.
