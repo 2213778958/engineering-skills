@@ -14,6 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 STAGES = (
     ("watch", (sys.executable, "openhands-watch/scripts/test_watch.py")),
+    ("route", (sys.executable, "engineering-routing/scripts/test_routing_table.py")),
     ("verify", (sys.executable, "engineering-init/scripts/test_verify.py")),
     ("guard", (sys.executable, "engineering-init/scripts/test_no_render_mandates.py")),
     ("process", (sys.executable, "engineering-process/scripts/test_source_markers.py")),
@@ -130,6 +131,8 @@ def main() -> int:
                         help="default timeout for each stage (seconds)")
     parser.add_argument("--watch-timeout", type=_positive_timeout,
                         help="watch stage timeout (seconds)")
+    parser.add_argument("--route-timeout", type=_positive_timeout,
+                        help="route stage timeout (seconds)")
     parser.add_argument("--verify-timeout", type=_positive_timeout,
                         help="verify stage timeout (seconds)")
     parser.add_argument("--guard-timeout", type=_positive_timeout,
@@ -139,6 +142,7 @@ def main() -> int:
     args = parser.parse_args()
     stage_timeouts = {
         "watch": args.watch_timeout,
+        "route": args.route_timeout,
         "verify": args.verify_timeout,
         "guard": args.guard_timeout,
         "process": args.process_timeout,
