@@ -18,6 +18,7 @@ STAGES = (
     ("verify", (sys.executable, "engineering-init/scripts/test_verify.py")),
     ("guard", (sys.executable, "engineering-init/scripts/test_no_render_mandates.py")),
     ("process", (sys.executable, "engineering-process/scripts/test_source_markers.py")),
+    ("maker", (sys.executable, "skill-maker/scripts/test_registrar_check.py")),
 )
 TIMEOUT_EXIT_CODE = 124
 
@@ -139,6 +140,8 @@ def main() -> int:
                         help="guard stage timeout (seconds)")
     parser.add_argument("--process-timeout", type=_positive_timeout,
                         help="process stage timeout (seconds)")
+    parser.add_argument("--maker-timeout", type=_positive_timeout,
+                        help="maker stage timeout (seconds)")
     args = parser.parse_args()
     stage_timeouts = {
         "watch": args.watch_timeout,
@@ -146,6 +149,7 @@ def main() -> int:
         "verify": args.verify_timeout,
         "guard": args.guard_timeout,
         "process": args.process_timeout,
+        "maker": args.maker_timeout,
     }
     return run_verification({
         name: args.timeout if timeout is None else timeout
