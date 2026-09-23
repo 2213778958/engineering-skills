@@ -4,7 +4,7 @@
 
 规划、拆票、分活这几件，跟你用 Cursor、OpenHands 还是 Codex 无关。会碰到具体工具的只有两个：`openhands-sessions`、`openhands-watch`。以后要 Codex 版，按这两个的职责再写一对就行，前面那些不用动。
 
-现在仓库里是 OpenHands 这一对。第一版，七个 skill。
+现在仓库里是 OpenHands 这一对。第一版，八个 skill。
 
 ## Skills
 
@@ -13,6 +13,9 @@
 
 **engineering-process**
 合同立完了，用这个往下推。规划部门分票；交付、验收、仲裁、人工各干各的。不要拿它初始化。
+
+**engineering-research**
+各类调研：先查仓库资料，没有再上网；交付一份调研文档。
 
 **engineering-routing**
 先问这活留在当前会话、开一个子会话，还是交给 subagent。选好了再去调 sessions。不要让它改合同，也不要让它自己 POST。
@@ -37,7 +40,7 @@ Agent skills for running an engineering job.
 
 Planning, tickets, and routing do not care whether the agent is Cursor, OpenHands, or Codex. The only harness-specific pieces are `openhands-sessions` and `openhands-watch`. A Codex port is another pair with the same jobs; the rest stays.
 
-This repo has the OpenHands pair. Seven skills, first version.
+This repo has the OpenHands pair. Eight skills, first version.
 
 ## Skills
 
@@ -46,6 +49,9 @@ Use this when the repo has no contract yet, or an existing project needs one. It
 
 **engineering-process**
 Use this after init, to move tickets. Planning hands work to delivery, acceptance, arbitration, or a human. Do not use it to plan a new repo.
+
+**engineering-research**
+Researches a topic: repo sources first, then the web; delivers one research document.
 
 **engineering-routing**
 Decides stay / child conversation / subagent, then calls sessions. It does not change the contract and does not POST on its own.
