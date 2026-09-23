@@ -16,6 +16,10 @@ STAGES = (
     ("watch", (sys.executable, "openhands-watch/scripts/test_watch.py")),
     ("verify", (sys.executable, "engineering-init/scripts/test_verify.py")),
     ("guard", (sys.executable, "engineering-init/scripts/test_no_render_mandates.py")),
+    (
+        "engineering-watch",
+        (sys.executable, "engineering-watch/scripts/test_watch_engineering.py"),
+    ),
 )
 TIMEOUT_EXIT_CODE = 124
 
@@ -133,11 +137,14 @@ def main() -> int:
                         help="verify stage timeout (seconds)")
     parser.add_argument("--guard-timeout", type=_positive_timeout,
                         help="guard stage timeout (seconds)")
+    parser.add_argument("--engineering-watch-timeout", type=_positive_timeout,
+                        help="engineering-watch stage timeout (seconds)")
     args = parser.parse_args()
     stage_timeouts = {
         "watch": args.watch_timeout,
         "verify": args.verify_timeout,
         "guard": args.guard_timeout,
+        "engineering-watch": args.engineering_watch_timeout,
     }
     return run_verification({
         name: args.timeout if timeout is None else timeout
