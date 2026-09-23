@@ -885,7 +885,6 @@ REPORT_HOPS = {
     "blocked",
     "wait-merge",
 }
-TERMINAL_STATES = {"finished", "stopped", "error"}
 NON_TERMINAL_RESUMABLE_STATES = {"paused", "idle", "awaiting_user"}
 RESUMABLE_STATES = TERMINAL_STATES | NON_TERMINAL_RESUMABLE_STATES
 
@@ -1016,6 +1015,24 @@ def validate_resume(parent: dict, child: dict, parent_id: str, child_id: str) ->
         raise SystemExit("resume target identity mismatch")
     if parent.get("parent_conversation_id"):
         raise SystemExit("resume invalid direction: current conversation is not planning")
+    # F2 (issue #24): the caller's own layer/role must be a parentless
+    # planning root, not merely a conversation without a parent pointer.
+    caller_tags = (
+        parent.get("tags") if isinstance(parent.get("tags"), dict) else {}
+    )
+    caller_layer = str(caller_tags.get("layer") or "")
+    caller_department = str(caller_tags.get("department") or "")
+    if caller_layer and caller_layer != "planning":
+        raise SystemExit(
+            "resume rejected: caller layer is not planning "
+            f"(layer={caller_layer!r}); resume is planning-root -> direct child"
+        )
+    if caller_department and caller_department != "planning":
+        raise SystemExit(
+            "resume rejected: caller has a non-planning department tag "
+            f"(department={caller_department!r}); resume is planning-root -> "
+            "direct child"
+        )
     if str(child.get("parent_conversation_id") or "") != parent_id:
         raise SystemExit("resume target is not a direct child of current planning conversation")
     if working_dir_of(child) != working_dir_of(parent):
@@ -1032,27 +1049,6 @@ def validate_resume(parent: dict, child: dict, parent_id: str, child_id: str) ->
         raise SystemExit("resume unsafe state: running")
     if state not in RESUMABLE_STATES:
         raise SystemExit(f"resume unsafe state: {state}")
-    # F2 (issue #24): the resume direction must be planning-root ->
-    # direct child. A caller with a parent, or a caller not marked as a
-    # planning conversation, may not resume anything.
-    if child.get("parent_conversation_id"):
-        raise SystemExit(
-            "resume rejected: caller must be a parentless planning root; "
-            "planning must not resume as a child"
-        )
-    tags = child.get("tags") if isinstance(child.get("tags"), dict) else {}
-    layer = str(tags.get("layer") or "")
-    department = str(tags.get("department") or "")
-    if layer and layer != "planning":
-        raise SystemExit(
-            "resume rejected: caller layer is not planning "
-            f"(layer={layer!r}); resume is planning-root -> direct child"
-        )
-    if department and department != "planning":
-        raise SystemExit(
-            "resume rejected: caller has a non-planning department tag "
-            f"(department={department!r}); resume is planning-root -> direct child"
-        )
     return state
 
 
@@ -2306,44 +2302,15 @@ def main() -> None:
     if args.mode == "resume":
         if not args.target_id or not args.prompt_file:
             raise SystemExit("resume needs --target-id and --prompt-file")
-        child = get_conversation(args.target_id)
-        if child is None:
-            raise SystemExit("resume target GET failed")
-        prior_state = validate_resume(parent, child, this_id, args.target_id)
-        text = Path(args.prompt_file).read_text(encoding="utf-8")
-        terminal = prior_state in TERMINAL_STATES
-        posted = post_message(args.target_id, text, run=not terminal)
-        if terminal:
-            api("POST", f"/api/conversations/{args.target_id}/run", {})
-        print(
-            json.dumps(
-                {
-                    "mode": "resume",
-                    "parent_id": this_id,
-                    "id": args.target_id,
-                    "dispatch_id": child["tags"]["dispatch_id"],
-                    "department": child["tags"]["department"],
-                    "ticket": child["tags"]["ticket"],
-                    "prior_status": prior_state,
-                    "resume_behavior": (
-                        "message-then-run" if terminal else "message-with-run"
-                    ),
-                    "url": f"{UI}/conversations/{args.target_id}",
-                    "posted": posted if isinstance(posted, dict) else True,
-                },
-                ensure_ascii=False,
-                indent=2,
-            ),
-            flush=True,
-        )
+        # F2 (issue #24): the main() resume path runs the same gate as the
+        # run_resume API path — reject before any message/run POST when the
+        # caller is not a parentless planning root or the direction is not
+        # planning-root -> own direct department child.
+        run_resume(args, parent, this_id)
         return
 
     if args.mode == "notify":
         run_notify(args, parent)
-        return
-
-    if args.mode == "resume":
-        run_resume(args, parent)
         return
 
     if args.mode == "dispatch":
