@@ -23,7 +23,16 @@ class StagesTests(unittest.TestCase):
     def test_no_render_stage(self) -> None:
         names = [name for name, _ in verify.STAGES]
         self.assertEqual(
-            names, ["watch", "route", "registry", "verify", "guard", "process"]
+            names,
+            [
+                "watch",
+                "route",
+                "registry",
+                "verify",
+                "guard",
+                "process",
+                "maker",
+            ],
         )
 
     def test_stage_scripts_exist(self) -> None:
@@ -43,6 +52,10 @@ class StagesTests(unittest.TestCase):
         self.assertEqual(
             registry[1], "engineering-init/scripts/test_routing_registry.py"
         )
+
+    def test_maker_stage_is_registrar_check(self) -> None:
+        maker = dict(verify.STAGES)["maker"]
+        self.assertEqual(maker[1], "skill-maker/scripts/test_registrar_check.py")
 
     def test_process_stage_is_source_markers(self) -> None:
         process = dict(verify.STAGES)["process"]
@@ -139,7 +152,7 @@ class RunStageTests(unittest.TestCase):
         timeouts = {name: 1.0 for name, _ in verify.STAGES}
         self.assertEqual(
             sorted(timeouts),
-            ["guard", "process", "registry", "route", "verify", "watch"],
+            ["guard", "maker", "process", "registry", "route", "verify", "watch"],
         )
 
 
