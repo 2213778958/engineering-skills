@@ -23,9 +23,13 @@ REPO_ROOT = SCRIPT_DIR.parents[1]
 _WATCH_SCRIPTS = str(REPO_ROOT / "openhands-watch" / "scripts")
 if _WATCH_SCRIPTS not in sys.path:
     sys.path.insert(0, _WATCH_SCRIPTS)
+_SESSIONS_SCRIPTS = str(REPO_ROOT / "openhands-sessions" / "scripts")
+if _SESSIONS_SCRIPTS not in sys.path:
+    sys.path.insert(0, _SESSIONS_SCRIPTS)
 
-from watch import classify, final_response, get_conversation  # noqa: E402
+from watch import api, classify, final_response, get_conversation  # noqa: E402
 from watch import ids_from_parent, parse_ids  # noqa: E402
+from spawn import event_text_blob, request_identity  # noqa: E402,F401
 
 REPORT_PREFIX = "engineering:report"
 RESPONSE_ECHO_CAP = 160
@@ -41,23 +45,6 @@ DEPARTMENT_LINE = re.compile(r"^\s*department:\s*(\S+)\s*$", re.M)
 TICKET_LINE = re.compile(r"^\s*ticket:\s*(#\d+)\s*$", re.M)
 EventReader = Callable[[str], list[str]]
 ChildProber = Callable[[str, int, datetime], dict[str, Any]]
-
-
-def request_identity(
-    parent_id: str, department: str, ticket: str, request_id: str
-) -> str:
-    """Build the dispatch identity string, matching spawn.py.
-
-    Args:
-        parent_id: Parent conversation that owns the dispatch.
-        department: Destination department.
-        ticket: Ticket scope (``#<n>``).
-        request_id: Caller-supplied logical request id.
-
-    Returns:
-        Identity ``dispatch:{parent_id}:{department}:{ticket}:{request_id}``.
-    """
-    return f"dispatch:{parent_id}:{department}:{ticket}:{request_id}"
 
 
 def report_fields(text: str) -> dict[str, str]:
@@ -254,6 +241,24 @@ def engineering_exit_code(verdict: str) -> int:
     return 1
 
 
+def event_texts(payload: object) -> list[str]:
+    """Flatten an events payload into per-event text blobs.
+
+    Args:
+        payload: ``GET /api/conversations/{id}/events`` payload, either a
+            bare event list or a dict with an ``items`` list.
+
+    Returns:
+        One text blob per event, best-effort; empty events are dropped.
+    """
+    items: list[object] = []
+    if isinstance(payload, list):
+        items = payload
+    elif isinstance(payload, dict) and isinstance(payload.get("items"), list):
+        items = payload["items"]
+    return [blob for blob in (event_text_blob(item) for item in items) if blob]
+
+
 def parent_event_texts(parent_id: str) -> list[str]:
     """Read the parent conversation's events as text blobs, best-effort.
 
@@ -266,18 +271,11 @@ def parent_event_texts(parent_id: str) -> list[str]:
     Returns:
         One text blob per event; empty list when nothing readable.
     """
-    from watch import api, event_text_blob
-
     try:
         payload = api("GET", f"/api/conversations/{parent_id}/events")
     except (SystemExit, OSError, ValueError):
         return []
-    items: list[object] = []
-    if isinstance(payload, list):
-        items = payload
-    elif isinstance(payload, dict) and isinstance(payload.get("items"), list):
-        items = payload["items"]
-    return [blob for blob in (event_text_blob(item) for item in items) if blob]
+    return event_texts(payload)
 
 
 def probe_row(cid: str, stall_sec: int, now: datetime) -> dict[str, Any]:

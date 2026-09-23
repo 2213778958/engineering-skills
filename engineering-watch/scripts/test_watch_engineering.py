@@ -12,13 +12,17 @@ from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT / "openhands-watch" / "scripts"))
+sys.path.insert(0, str(_REPO_ROOT / "openhands-sessions" / "scripts"))
 
+import spawn
+import watch_engineering
 from watch import classify
 from watch_engineering import (
     build_snapshot,
     correlated_report,
     engineering_classify,
     engineering_exit_code,
+    event_texts,
     finalization_failed,
     is_correlated_report,
     request_identity,
@@ -79,6 +83,9 @@ def terminal_row(final: str | None = None) -> dict:
 
 
 class IdentityTests(unittest.TestCase):
+    def test_identity_is_spawn_reexport(self) -> None:
+        self.assertIs(watch_engineering.request_identity, spawn.request_identity)
+
     def test_identity_matches_spawn(self) -> None:
         self.assertEqual(
             request_identity(PARENT, DEPARTMENT, TICKET, REQUEST_ID),
@@ -103,6 +110,26 @@ class IdentityTests(unittest.TestCase):
             self.assertIsNone(
                 correlated_report([text], PARENT, DEPARTMENT, TICKET, REQUEST_ID)
             )
+
+
+class EventTextsTests(unittest.TestCase):
+    def test_role_style_event_flattens_to_report_text(self) -> None:
+        event = {"role": "user", "content": [{"text": REPORT}]}
+        self.assertEqual(event_texts([event]), [REPORT])
+        self.assertEqual(event_texts({"items": [event]}), [REPORT])
+
+    def test_non_text_payloads_yield_no_blobs(self) -> None:
+        self.assertEqual(event_texts([]), [])
+        self.assertEqual(event_texts(None), [])
+        self.assertEqual(event_texts({"items": [{"kind": "Agent"}]}), [])
+
+    def test_flattened_events_feed_correlation(self) -> None:
+        event = {"role": "user", "content": [{"text": REPORT}]}
+        texts = event_texts({"items": [event]})
+        self.assertEqual(
+            correlated_report(texts, PARENT, DEPARTMENT, TICKET, REQUEST_ID),
+            REPORT,
+        )
 
 
 class AliveTests(unittest.TestCase):
