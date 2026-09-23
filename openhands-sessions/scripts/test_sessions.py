@@ -440,7 +440,7 @@ class MainApiPathTests(unittest.TestCase):
         self.assertIn("correlation: legacy-unverified", posted_text)
         self.assertIn("completion-eligible: false", posted_text)
 
-    def test_notify_rejects_stale_and_incomplete_reports_before_post(self) -> None:
+    def test_notify_rejects_stale_incomplete_and_planning_callers(self) -> None:
         for report in (
             self.report(ticket="#23"),
             "engineering:report\nhop: done\nreceipts: delivery implement=pass",
@@ -455,6 +455,23 @@ class MainApiPathTests(unittest.TestCase):
                 )
             event_calls = [call for call in api.calls if call[1].endswith("/events")]
             self.assertEqual(event_calls, [])
+
+        # F1 on the main() path: a planning caller is refused before any
+        # POST — spawn refuses a notify whose own conversation lacks a
+        # parent_conversation_id, which planning windows never carry.
+        api = CanvasApi()
+        planning_child = self.child()
+        planning_child["tags"]["department"] = "planning"
+        del planning_child["parent_conversation_id"]
+        api.conversations[self.CHILD_ID] = planning_child
+        with self.assertRaisesRegex(SystemExit, "Planning must not notify"):
+            self.run_main(
+                api,
+                ["--mode", "notify", "--this-id", self.CHILD_ID],
+                self.report(),
+            )
+        event_calls = [call for call in api.calls if call[1].endswith("/events")]
+        self.assertEqual(event_calls, [])
 
     def test_terminal_and_non_terminal_resume_post_single_role_form_event(self) -> None:
         # Adopted new-main semantics: both terminal and non-terminal
