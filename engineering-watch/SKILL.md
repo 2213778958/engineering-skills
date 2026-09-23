@@ -47,7 +47,7 @@ This skill owns the engineering meaning of a dispatch: report arrival correlated
 
 Report correlation is by dispatch identity, built like `spawn.py` `request_identity()`: `dispatch:{parent_id}:{department}:{ticket}:{request_id}`. The child's report text carries a `request: <request-id>` line; the parent-side search also matches `department:` and `ticket:` lines. The first line must be `engineering:report`. Any `engineering:report` with a different `request:` / department / ticket is not correlated.
 
-If a child is terminal but is an already-terminal child that sessions can resume, planning may resume it via `openhands-sessions`; report that as an informational next action only.
+Resume stays in `openhands-sessions`: a terminal child stays resumable there. This skill reports the state and stops.
 
 ## Steps
 
