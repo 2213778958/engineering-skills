@@ -104,6 +104,7 @@ python <sessions-skill>/scripts/spawn.py --mode resume --target-id <uuid> --tick
 - Receipts: `accepted` = the continuation operation was accepted only, not department work completion; do not finish the hop, do not watch. `unknown` = unproven (timeout or lost response): reconcile with the same `--ticket` + `--request-id`; a timeout or lost response is unknown-until-reconciled, not a retry trigger — no blind retry, no redispatch on timeout. `rejected` = stop with the receipt evidence; no automatic replacement dispatch and no force bypass.
 - Preserve commits, accepted fixes, existing history, and valid receipts across the resume. Rerun only the hops the arbitration verdict invalidated (the disputed scope); do not re-run accepted independent findings or already verified hops.
 - Reporting stays child → parent: the resumed department manage still finishes the hop with sessions `spawn.py --mode notify`. Callers use spawn.py only; never copied raw HTTP calls.
+- Receiver-side dedup: planning dedups incoming reports by the report's `request:` line, so a re-sent notify whose earlier post actually landed is duplicate-safe by design; keep the `request:` line intact in every report.
 - This resume does not implement the **Review disposition** flow above. Disposition keeps returning review findings to the original implement employee inside that delivery window; resume only continues the department window. Keep both intact; do not conflate them.
 
 ## Key points: what each hop does

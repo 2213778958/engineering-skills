@@ -140,6 +140,18 @@ class GitHubBindingTests(unittest.TestCase):
         )
         self.assertIsNotNone(pattern.search(source))
 
+    def test_event_post_timeouts_use_module_constant(self) -> None:
+        source = MODULE_PATH.read_text(encoding="utf-8")
+        self.assertIn("EVENT_POST_TIMEOUT = 180", source)
+        for operation in ("resume", "notify"):
+            with self.subTest(operation=operation):
+                self.assertIn(
+                    "timeout=EVENT_POST_TIMEOUT,\n"
+                    f'            operation="{operation}",',
+                    source,
+                )
+        self.assertNotIn("timeout=60,\n            operation=", source)
+
     def test_duplicate_active_dispatch_is_rejected(self) -> None:
         with patch.object(
             spawn,
@@ -319,12 +331,22 @@ PROFILE = "12345678-1234-5678-1234-567812345678"
 REAL_URLOPEN = urllib.request.urlopen
 
 
-def api_recorder(convs: dict, posts: list):
-    """Drive real adapter code paths through a controlled in-memory backend."""
+def api_recorder(convs: dict, posts: list, events: dict | None = None):
+    """Drive real adapter code paths through a controlled in-memory backend.
+
+    Args:
+        convs: Conversation lookup keyed by id.
+        posts: Receives the POSTed paths.
+        events: Optional persisted events per conversation id, served by
+            GET ``/api/conversations/{id}/events`` as ``{"items": [...]}``.
+    """
 
     def record(method, path, body=None, timeout=60, redact_error=False):
         if path.startswith("/api/conversations/search"):
             return {"items": []}
+        if method == "GET" and path.endswith("/events"):
+            cid = path[len("/api/conversations/"):-len("/events")]
+            return {"items": list((events or {}).get(cid, []))}
         if method == "POST" and path == "/api/conversations":
             posts.append(path)
             return dict(convs.get("__create__", {"id": CHILD, "conversation_id": ""}))
@@ -339,6 +361,26 @@ def api_recorder(convs: dict, posts: list):
         return {}
 
     return record
+
+
+def body_capturing_recorder(convs: dict, posts: list, bodies: list):
+    """api_recorder that additionally captures POSTed JSON bodies.
+
+    Args:
+        convs: Conversation lookup keyed by id.
+        posts: Receives the POSTed paths, same contract as api_recorder.
+        bodies: Receives the JSON body dicts of event/run POSTs in order.
+    """
+    record = api_recorder(convs, posts)
+
+    def capture(method, path, body=None, timeout=60, redact_error=False):
+        if method == "POST" and (
+            path.endswith("/events") or path.endswith("/run")
+        ):
+            bodies.append(body)
+        return record(method, path, body, timeout, redact_error)
+
+    return capture
 
 
 class LedgerIsolatedTestCase(unittest.TestCase):
@@ -607,6 +649,31 @@ class ResumeTests(LedgerIsolatedTestCase):
         self.assertIn('"operation": "resume"', out)
         self.assertIn(TARGET, out)
 
+    def test_resume_posts_role_style_event_with_full_continuation_text(self) -> None:
+        prompt = "resume: continue hop 2 with request req-res1 details"
+        convs = {TARGET: self.child_conv(cid=TARGET, status="finished")}
+        bodies: list = []
+        with patch.object(
+            spawn,
+            "api",
+            side_effect=body_capturing_recorder(convs, self.posts, bodies),
+        ):
+            self.output_of(
+                spawn.run_resume,
+                self.resume_args(prompt_file=self.prompt_file("resume49.txt", prompt)),
+                self.parent_conv(),
+            )
+        self.assertEqual(self.posts, [f"/api/conversations/{TARGET}/events"])
+        self.assertEqual(len(bodies), 1)
+        persisted = bodies[0]["content"]
+        self.assertTrue(persisted)
+        self.assertEqual(
+            persisted, [{"type": "text", "text": prompt}]
+        )
+        self.assertEqual(bodies[0]["role"], "user")
+        self.assertIs(bodies[0]["run"], True)
+        self.assertNotIn("llm_message", bodies[0])
+
     def test_resume_rejects_missing_target(self) -> None:
         with patch.object(spawn, "api", side_effect=api_recorder({}, self.posts)):
             with self.assertRaisesRegex(SystemExit, "does not exist"):
@@ -751,6 +818,35 @@ class ResumeTests(LedgerIsolatedTestCase):
             self.posts.count(f"/api/conversations/{TARGET}/events"), 1
         )
 
+    def test_unknown_resume_reconciles_from_persisted_event_marker(self) -> None:
+        prompt = "resume: continue hop 2 for #51 without a request line"
+        args = self.resume_args(prompt_file=self.prompt_file("resume51.txt", prompt))
+        with patch.object(
+            spawn, "api", side_effect=TimeoutError("read timed out")
+        ), self.assertRaises(TimeoutError):
+            self.output_of(spawn.run_resume, args, self.parent_conv())
+        entry = spawn.load_ledger(PARENT)["req-res1"]
+        self.assertEqual(entry["status"], "unknown")
+        convs = {TARGET: self.child_conv(cid=TARGET, status="finished")}
+        events = {
+            TARGET: [
+                {
+                    "role": "user",
+                    "content": [{"type": "text", "text": prompt}],
+                }
+            ]
+        }
+        with patch.object(
+            spawn, "api", side_effect=api_recorder(convs, self.posts, events)
+        ):
+            receipt = self.output_of(spawn.run_resume, args, self.parent_conv())
+        self.assertEqual(self.posts, [])
+        self.assertIn('"receipt": "accepted"', receipt)
+        self.assertIn('"reconciled": true', receipt)
+        reconciled = spawn.load_ledger(PARENT)["req-res1"]
+        self.assertEqual(reconciled["status"], "accepted")
+        self.assertIn("marker", reconciled["evidence"])
+
     def test_resume_socket_timeout_yields_unknown_receipt(self) -> None:
         class StallHandler(socketserver.BaseRequestHandler):
             def handle(self) -> None:
@@ -841,6 +937,36 @@ class NotifyIdentityTests(LedgerIsolatedTestCase):
         self.assertIn(f"/api/conversations/{PARENT}/events", self.posts)
         self.assertIn('"receipt": "accepted"', out)
 
+    def test_notify_posts_role_style_event_with_full_report_text(self) -> None:
+        report = (
+            "engineering:report\ndepartment: delivery\nticket: #41\n"
+            "hop: done with details\nrequest: req-not1\n"
+        )
+        convs = {PARENT: {"id": PARENT, "status": "running"}}
+        bodies: list = []
+        with patch.object(
+            spawn,
+            "api",
+            side_effect=body_capturing_recorder(convs, self.posts, bodies),
+        ):
+            self.output_of(
+                spawn.run_notify,
+                self.notify_args(
+                    related_request_id="req-not1",
+                    prompt_file=self.prompt_file("report49.txt", report),
+                ),
+                self.child_window(),
+                CHILD,
+            )
+        self.assertIn(f"/api/conversations/{PARENT}/events", self.posts)
+        self.assertEqual(len(bodies), 1)
+        persisted = bodies[0]["content"]
+        self.assertTrue(persisted)
+        self.assertEqual(persisted, [{"type": "text", "text": report}])
+        self.assertEqual(bodies[0]["role"], "user")
+        self.assertIs(bodies[0]["run"], True)
+        self.assertNotIn("llm_message", bodies[0])
+
     def test_related_request_mismatch_rejected_without_post(self) -> None:
         convs = {PARENT: {"id": PARENT, "status": "running"}}
         with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
@@ -891,6 +1017,109 @@ class NotifyIdentityTests(LedgerIsolatedTestCase):
                     self.notify_args(), self.parent_conv(), PARENT
                 )
         self.assertEqual(self.posts, [])
+
+    def test_unknown_notify_reconciles_marker_without_second_post(self) -> None:
+        convs = {PARENT: {"id": PARENT, "status": "running"}}
+        with patch.object(
+            spawn, "api", side_effect=TimeoutError("read timed out")
+        ), self.assertRaises(TimeoutError):
+            self.output_of(
+                spawn.run_notify, self.notify_args(), self.child_window(), CHILD
+            )
+        entry = spawn.load_ledger(PARENT)["req-report1"]
+        self.assertEqual(entry["status"], "unknown")
+        with open(
+            self.notify_args().prompt_file, encoding="utf-8"
+        ) as fh:
+            report = fh.read()
+        events = {
+            PARENT: [
+                {"role": "user", "content": [{"type": "text", "text": report}]}
+            ]
+        }
+        with patch.object(
+            spawn, "api", side_effect=api_recorder(convs, self.posts, events)
+        ):
+            receipt = self.output_of(
+                spawn.run_notify, self.notify_args(), self.child_window(), CHILD
+            )
+        self.assertEqual(self.posts, [])
+        self.assertIn('"receipt": "accepted"', receipt)
+        self.assertIn('"reconciled": true', receipt)
+        reconciled = spawn.load_ledger(PARENT)["req-report1"]
+        self.assertEqual(reconciled["status"], "accepted")
+        self.assertIn("marker", reconciled["evidence"])
+        self.assertEqual(reconciled["attempts"], 1)
+
+    def test_unknown_notify_without_marker_resends_exactly_once(self) -> None:
+        convs = {PARENT: {"id": PARENT, "status": "running"}}
+        with patch.object(
+            spawn, "api", side_effect=TimeoutError("read timed out")
+        ), self.assertRaises(TimeoutError):
+            self.output_of(
+                spawn.run_notify, self.notify_args(), self.child_window(), CHILD
+            )
+        # Marker genuinely absent: the first attempt never landed, so the
+        # reconcile returns "resend" and the single bounded re-send fires.
+        with patch.object(
+            spawn, "api", side_effect=api_recorder(convs, self.posts, {PARENT: []})
+        ):
+            receipt = self.output_of(
+                spawn.run_notify, self.notify_args(), self.child_window(), CHILD
+            )
+        self.assertEqual(
+            self.posts.count(f"/api/conversations/{PARENT}/events"), 1
+        )
+        self.assertIn('"receipt": "accepted"', receipt)
+        # The delivered report replays reconciled instead of duplicating:
+        # dedup wins even at exhausted attempts.
+        before = self.posts.count(f"/api/conversations/{PARENT}/events")
+        with patch.object(
+            spawn, "api", side_effect=api_recorder(convs, self.posts, {PARENT: []})
+        ):
+            replay = self.output_of(
+                spawn.run_notify, self.notify_args(), self.child_window(), CHILD
+            )
+        self.assertEqual(
+            self.posts.count(f"/api/conversations/{PARENT}/events"), before
+        )
+        self.assertIn('"receipt": "accepted"', replay)
+        self.assertIn('"reconciled": true', replay)
+        # Exhaustion is the pure lost-response path on a fresh identity
+        # (two timeouts, no API acceptance, marker never appears):
+        # unknown + exit 1 is kept.
+        exhaust_report = (
+            "engineering:report\ndepartment: delivery\nticket: #41\n"
+            "hop: done\nrequest: req-not1\n"
+        )
+        exhaust_args = self.notify_args(
+            request_id="req-report2",
+            prompt_file=self.prompt_file("report-exhaust.txt", exhaust_report),
+        )
+        with patch.object(
+            spawn, "api", side_effect=TimeoutError("read timed out")
+        ), self.assertRaises(TimeoutError):
+            self.output_of(
+                spawn.run_notify, exhaust_args, self.child_window(), CHILD
+            )
+        with patch.object(
+            spawn, "api", side_effect=TimeoutError("read timed out")
+        ), self.assertRaises(TimeoutError):
+            self.output_of(
+                spawn.run_notify, exhaust_args, self.child_window(), CHILD
+            )
+        with patch.object(
+            spawn, "api", side_effect=TimeoutError("read timed out")
+        ), self.assertRaises(SystemExit):
+            self.output_of(
+                spawn.run_notify, exhaust_args, self.child_window(), CHILD
+            )
+        self.assertEqual(
+            self.posts.count(f"/api/conversations/{PARENT}/events"), before
+        )
+        exhausted = spawn.load_ledger(PARENT)["req-report2"]
+        self.assertEqual(exhausted["status"], "unknown")
+        self.assertEqual(exhausted["attempts"], 2)
 
 
 class ControlledHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):
@@ -1071,6 +1300,15 @@ class ProcessCompletionAcceptanceTests(unittest.TestCase):
         self.assertEqual(resume["receipt"], "accepted")
         self.assertEqual(resume["operation"], "resume")
         self.assertEqual(self.server.requests[-1][0:2], ("POST", f"/api/conversations/{CHILD}/events"))
+        resume_body = json.loads(self.server.requests[-1][2].decode("utf-8"))
+        self.assertEqual(
+            resume_body,
+            {
+                "role": "user",
+                "content": [{"type": "text", "text": "resume ticket #41"}],
+                "run": True,
+            },
+        )
 
         report = self.write_prompt(
             "report.txt",
@@ -1099,6 +1337,9 @@ class ProcessCompletionAcceptanceTests(unittest.TestCase):
             self.server.requests[-1][0:2],
             ("POST", f"/api/conversations/{PARENT}/events"),
         )
+        notify_body = json.loads(self.server.requests[-1][2].decode("utf-8"))
+        self.assertTrue(notify_body["content"])
+        self.assertIn("request: req-dispatch", notify_body["content"][0]["text"])
 
         for operation in (dispatch, resume, notify):
             self.assertIsInstance(operation["evidence"], str)
