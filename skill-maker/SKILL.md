@@ -10,6 +10,18 @@ description: >-
 
 Read this when creating or editing a skill. Write operations, not reasons.
 
+## Registrar
+
+Registering a skill = execute a registration patch ticket. Registration never dispatches anything: the table is data, routing consumes it; `registered` is NOT routable. Follow `engineering-routing/references/routing-table.md` § Registration step-for-step. Privileges and enforcement: read `references/privileges.md`.
+
+1. Skill files land in the repo: `<name>/SKILL.md` present, frontmatter `name:` equal to the directory name. Anyone may author; authorship is not gated.
+2. Spec contains/uses entry added: a contains edge from the owning parent; every enabled craft skill adds one `uses -> engineering-routing` edge; craft skills never get `-> sessions` edges.
+3. Exactly one routing-table row appended to `engineering-routing/references/routing-table.md`: state `registered` (not `enabled`), empty `group`, empty `uses`, `entry` = the skill name with no path separators.
+4. Never engine code: no edits to engineering-series `SKILL.md` or scripts. The table file itself is data, not engine code.
+5. Registration never dispatches anything. Enablement (`registered` -> `enabled`) is a separate patch ticket, not part of registration.
+
+Validate before executing the patch: `python skill-maker/scripts/registrar_check.py --name <name> --table engineering-routing/references/routing-table.md`. Empty output = pass. Fail closed on malformed input; never guess.
+
 ## Disk
 
 1. Directories: `~/.cursor/skills/<name>/` and `~/.openhands/skills/<name>/`, identical copies.
