@@ -8,7 +8,13 @@ One Markdown table. One row per registered skill. Columns, in order:
 
 | skill | state | group | entry | uses |
 |---|---|---|---|---|
-| | | | | |
+| datasheet-headers | enabled | hardware | datasheet-headers | engineering-routing |
+| engineering-init | enabled | process | engineering-init | engineering-routing |
+| engineering-process | enabled | process | engineering-process | engineering-routing |
+| engineering-routing | registered | — | engineering-routing | — |
+| openhands-sessions | enabled | process | openhands-sessions | engineering-routing |
+| openhands-watch | registered | — | openhands-watch | — |
+| skill-maker | registered | — | skill-maker | — |
 
 - `skill`: the skill's declared `name:` in its SKILL.md frontmatter (the source marker). Must equal the directory name.
 - `state`: `registered` or `enabled`.
