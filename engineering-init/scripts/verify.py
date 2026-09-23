@@ -21,6 +21,7 @@ STAGES = (
     ("sessions", (sys.executable, "openhands-sessions/scripts/test_sessions.py")),
     ("spawn", (sys.executable, "openhands-sessions/scripts/test_spawn.py")),
     ("process", (sys.executable, "engineering-process/scripts/test_source_markers.py")),
+    ("maker", (sys.executable, "skill-maker/scripts/test_registrar_check.py")),
 )
 TIMEOUT_EXIT_CODE = 124
 
@@ -148,6 +149,8 @@ def main() -> int:
                         help="spawn stage timeout (seconds)")
     parser.add_argument("--process-timeout", type=_positive_timeout,
                         help="process stage timeout (seconds)")
+    parser.add_argument("--maker-timeout", type=_positive_timeout,
+                        help="maker stage timeout (seconds)")
     args = parser.parse_args()
     stage_timeouts = {
         "watch": args.watch_timeout,
@@ -158,6 +161,7 @@ def main() -> int:
         "sessions": args.sessions_timeout,
         "spawn": args.spawn_timeout,
         "process": args.process_timeout,
+        "maker": args.maker_timeout,
     }
     return run_verification({
         name: args.timeout if timeout is None else timeout
