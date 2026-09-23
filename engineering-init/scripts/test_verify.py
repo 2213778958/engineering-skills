@@ -36,6 +36,12 @@ class StagesTests(unittest.TestCase):
         route = dict(verify.STAGES)["route"]
         self.assertEqual(route[1], "engineering-routing/scripts/test_routing_table.py")
 
+    def test_registry_stage_is_routing_registry(self) -> None:
+        registry = dict(verify.STAGES)["registry"]
+        self.assertEqual(
+            registry[1], "engineering-init/scripts/test_routing_registry.py"
+        )
+
     def test_process_stage_is_source_markers(self) -> None:
         process = dict(verify.STAGES)["process"]
         self.assertEqual(
