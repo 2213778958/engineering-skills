@@ -32,6 +32,12 @@ class StagesTests(unittest.TestCase):
         guard = dict(verify.STAGES)["guard"]
         self.assertEqual(guard[1], "engineering-init/scripts/test_no_render_mandates.py")
 
+    def test_process_stage_is_source_markers(self) -> None:
+        process = dict(verify.STAGES)["process"]
+        self.assertEqual(
+            process[1], "engineering-process/scripts/test_source_markers.py"
+        )
+
 
 class VerifyRunnerTests(unittest.TestCase):
     def run_script(self, body: str, timeout: float = 2.0) -> tuple[int, str, str]:
