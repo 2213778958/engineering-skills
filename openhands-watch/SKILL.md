@@ -24,24 +24,13 @@ The normalized watch and session semantics are defined in [the harness capabilit
 ## Rules
 
 1. Live API only. Do not cache ids across turns.
-2. Never print the API key. Header `X-Session-API-Key` from `~/.openhands/agent-canvas/api-key.txt`.
-3. Hosts: backend `http://localhost:8000`, UI `http://localhost:3001`.
-4. Windows: PowerShell 5.1. Call `scripts/watch.py`. Do not `curl` child `/events/search` from any department.
-5. Do not POST `/api/conversations`. Do not write `dispatch_session.py`. Do not interrupt / pause / run the child unless the user said to.
-6. Do not change the engineering contract. Do not advance tickets.
-7. At most 3 child ids in one watch.
+2. Never print the API key. Credential, host, and transport mechanics (key header, backend/UI hosts, PowerShell 5.1) live in [../openhands-sessions/references/identity.md](../openhands-sessions/references/identity.md).
+3. Call `scripts/watch.py`. Do not `curl` child `/events/search` from any department.
+4. Do not POST `/api/conversations`. Do not write `dispatch_session.py`. Do not interrupt / pause / run the child unless the user said to.
+5. Read-only: watch never dispatches, advances tickets, or changes the engineering contract.
+6. At most 3 child ids in one watch.
 
-## Key points
-
-**Hung** = `stuck` / `waiting_for_confirmation` / `paused` / `deleting` / stall / missing `tags.clientsource=agentcanvas` while not terminal / 404 / loop poll-timeout.
-
-**Terminal** = `finished` / `error` / `stopped`. Finished with empty tags is still terminal.
-
-**Alive** = non-terminal, tagged, heartbeat younger than `--stall-sec`.
-
-Heartbeat = last `events/search` `timestamp`, else conversation `updated_at`.
-
-Do not print event bodies. Terminal rows may include truncated `final_response`.
+State classification (hung / terminal / alive mapping, heartbeat, output rules) → [classification](references/classification.md).
 
 ## Steps
 
