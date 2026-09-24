@@ -12,6 +12,7 @@ socket-level behavior that cannot be observed through a patched ``api``.
 """
 from __future__ import annotations
 import argparse
+import http.client
 import http.server
 import importlib.util
 import io
@@ -26,7 +27,7 @@ import tempfile
 import threading
 import unittest
 import urllib.request
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 MODULE_PATH = Path(__file__).with_name("spawn.py")
@@ -35,7 +36,7 @@ assert SPEC and SPEC.loader
 spawn = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = spawn
 SPEC.loader.exec_module(spawn)
-from canvas_sessions import dispatch, identity, resume, transport
+from canvas_sessions import dispatch, identity, ledger, resume, transport
 class GitHubBindingTests(unittest.TestCase):
     """Exercise mapping, rejection, redaction, and isolation behavior."""
     def test_binding_maps_registered_source_to_consumer(self) -> None:
@@ -332,18 +333,26 @@ def api_recorder(convs: dict, posts: list, events: dict | None = None):
     Args:
         convs: Conversation lookup keyed by id.
         posts: Receives the POSTed paths.
-        events: Optional persisted events per conversation id, served by
-            GET ``/api/conversations/{id}/events`` as ``{"items": [...]}``.
+        events: Optional persisted events per conversation id, served by GET
+            ``/api/conversations/{id}/events/search`` (#53: the conversation
+            id lives before the ``/events`` segment even with the query
+            string appended) as ``{"items": [...]}``.
     """
 
     def record(method, path, body=None, timeout=60, redact_error=False):
         if path.startswith("/api/conversations/search"):
             return {"items": []}
-        if method == "GET" and path.endswith("/events"):
-            cid = path[len("/api/conversations/"):-len("/events")]
+        if method == "GET" and "/events" in path:
+            scoped = path[len("/api/conversations/") :]
+            cid = scoped.split("/events", 1)[0]
             return {"items": list((events or {}).get(cid, []))}
         if method == "POST" and path == "/api/conversations":
             posts.append(path)
+            requested = str((body or {}).get("conversation_id") or "")
+            if requested:
+                if requested in convs:
+                    return dict(convs[requested])
+                return {"id": requested, "conversation_id": ""}
             return dict(convs.get("__create__", {"id": CHILD, "conversation_id": ""}))
         if method == "POST" and (path.endswith("/events") or path.endswith("/run")):
             posts.append(path)
@@ -358,13 +367,15 @@ def api_recorder(convs: dict, posts: list, events: dict | None = None):
     return record
 
 
-def body_capturing_recorder(convs: dict, posts: list, bodies: list):
+def body_capturing_recorder(convs: dict, posts: list, bodies: list, creates: list | None = None):
     """api_recorder that additionally captures POSTed JSON bodies.
 
     Args:
         convs: Conversation lookup keyed by id.
         posts: Receives the POSTed paths, same contract as api_recorder.
         bodies: Receives the JSON body dicts of event/run POSTs in order.
+        creates: When given, additionally receives the JSON body dicts of
+            conversation-create POSTs in order (identity-injection probe).
     """
     record = api_recorder(convs, posts)
 
@@ -373,6 +384,8 @@ def body_capturing_recorder(convs: dict, posts: list, bodies: list):
             path.endswith("/events") or path.endswith("/run")
         ):
             bodies.append(body)
+        if creates is not None and method == "POST" and path == "/api/conversations":
+            creates.append(body)
         return record(method, path, body, timeout, redact_error)
 
     return capture
@@ -491,6 +504,13 @@ class LedgerIsolatedTestCase(unittest.TestCase):
             fn(*args)
         return out.getvalue()
 
+    def capture_output_of(self, fn, *args) -> tuple[str, str]:
+        """Run ``fn`` capturing stdout; return (stdout, stderr) strings."""
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            fn(*args)
+        return out.getvalue(), err.getvalue()
+
 
 class ProfileIdentityTests(LedgerIsolatedTestCase):
     """--profile-id is the Agent Canvas profile UUID, never a display name."""
@@ -529,7 +549,15 @@ class DispatchLedgerTests(LedgerIsolatedTestCase):
     """Request-scoped dispatch identity, ledger reconciliation, fail-closed."""
 
     def test_same_request_retry_reconciles_without_second_post(self) -> None:
-        recorder = api_recorder({CHILD: self.child_conv()}, self.posts)
+        # Issue #53: the created child id is derived from the request
+        # identity, so the retry's reconciliation GET must find that exact
+        # child (running) instead of a pre-baked unrelated fixture id.
+        derived = spawn.dispatch_request_child_id(
+            PARENT, "delivery", "#41", "req-aaa1"
+        )
+        recorder = api_recorder(
+            {derived: self.child_conv(cid=derived)}, self.posts
+        )
         with patch.object(transport, "api", side_effect=recorder):
             self.output_of(
                 spawn.run_dispatch, self.dispatch_args(), self.parent_conv()
@@ -1039,6 +1067,269 @@ class NotifyIdentityTests(LedgerIsolatedTestCase):
         self.assertIn("marker", reconciled["evidence"])
         self.assertEqual(reconciled["attempts"], 1)
 
+    def test_events_lookup_uses_conversation_scoped_search_shape(self) -> None:
+        # Issue #53: the events read must use the conversation-scoped search
+        # endpoint — the bare /events form is rejected by the server (422),
+        # which silently disabled reconcile-before-resend.
+        search = spawn.notify.event_search_path(PARENT)
+        self.assertTrue(search.startswith(f"/api/conversations/{PARENT}/events/search?"))
+        self.assertIn("limit=", search)
+        self.assertIn("sort_order=", search)
+        with patch.object(transport, "api", side_effect=TimeoutError("read timed out")
+        ), self.assertRaises(TimeoutError):
+            self.output_of(
+                spawn.run_notify, self.notify_args(), self.child_window(), CHILD
+            )
+        with open(self.notify_args().prompt_file, encoding="utf-8") as fh:
+            report = fh.read()
+        convs = {PARENT: {"id": PARENT, "status": "running"}}
+        events = {
+            PARENT: [{"role": "user", "content": [{"type": "text", "text": report}]}]
+        }
+        calls: list = []
+        base = api_recorder(convs, self.posts, events)
+
+        def spy(method, path, body=None, timeout=60, redact_error=False):
+            calls.append((method, path))
+            return base(method, path, body, timeout, redact_error)
+
+        with patch.object(transport, "api", side_effect=spy):
+            receipt = self.output_of(
+                spawn.run_notify, self.notify_args(), self.child_window(), CHILD
+            )
+        self.assertIn(("GET", search), calls)
+        self.assertNotIn(("GET", f"/api/conversations/{PARENT}/events"), calls)
+        # The marker was found through the search read: no re-send fires.
+        self.assertNotIn(("POST", f"/api/conversations/{PARENT}/events"), calls)
+        self.assertIn('"reconciled": true', receipt)
+        self.assertEqual(spawn.load_ledger(PARENT)["req-report1"]["attempts"], 1)
+
+
+class TransportErrorLedgerTests(LedgerIsolatedTestCase):
+    """Issue #53: connection-loss produces a ledger record, retry is bounded.
+
+    RemoteDisconnected (and other http.client.HTTPException transport
+    failures) used to escape http_op without a ledger record, so
+    reconciliation could not tell "accepted but response lost" from
+    "never sent".
+    """
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.bind_target()
+        ledger_map = spawn.load_ledger(PARENT)
+        entry = ledger_map.pop("req-disp0")
+        entry["request_id"] = "req-not1"
+        entry["child_id"] = CHILD
+        ledger_map["req-not1"] = entry
+        spawn.save_ledger(PARENT, ledger_map)
+        self.first_post = None
+        self.inner_api = transport.api
+
+    def record_posts(self) -> None:
+        """Capture the first POST path/body through any inner api patch."""
+        outer = self
+
+        def delegating(method: str, path: str, body=None, **kw):
+            if method == "POST" and outer.first_post is None:
+                outer.first_post = (method, path, body)
+            # Delegate to whatever api implementation is current at call
+            # time, so per-phase patches in the same test still apply.
+            return outer.inner_api(method, path, body, **kw)
+
+        self.api_patch = patch.object(
+            transport, "api", new=lambda *a, **kw: delegating(*a, **kw)
+        )
+        self.api_patch.start()
+        self.addCleanup(self.api_patch.stop)
+        self.addCleanup(setattr, transport, "api", self.inner_api)
+
+    def child_window(self) -> dict:
+        return {
+            "id": CHILD,
+            "workspace": {"kind": "LocalWorkspace", "working_dir": self.wd},
+            "tags": {"clientsource": "agentcanvas", "department": "delivery"},
+            "parent_conversation_id": PARENT,
+        }
+
+    def notify_args(self, **over):
+        base = dict(
+            mode="notify",
+            this_id="",
+            profile_id="",
+            department="",
+            github_token_secret="",
+            prompt_file=self.prompt_file(
+                "report.txt",
+                "engineering:report\ndepartment: delivery\nticket: #41\n"
+                "hop: done\nrequest: req-not1\n",
+            ),
+            max_iterations=500,
+            poll_sec=0,
+            timeout_sec=5400,
+            force=False,
+            ticket="",
+            request_id="req-report1",
+            target_id="",
+            related_request_id="",
+            parent_id="",
+        )
+        base.update(over)
+        return argparse.Namespace(**base)
+
+    def test_remote_disconnected_is_ledgered_with_bounded_resend(self) -> None:
+        drop = http.client.RemoteDisconnected("dropped mid-response")
+        self.record_posts()
+        with patch.object(transport, "api", side_effect=drop), \
+                self.assertRaises(http.client.RemoteDisconnected):
+            receipt = self.output_of(
+                spawn.run_notify, self.notify_args(), self.child_window(), CHILD
+            )
+        self.assertIsNone(self.first_post)
+        entry = spawn.load_ledger(PARENT)["req-report1"]
+        self.assertEqual(entry["status"], "unknown")
+        self.assertEqual(entry["attempts"], 1)
+        # Exactly one ledger-gated re-send fires before the bound is reached.
+        # The first attempt's lost POST is proven absent here: first_post
+        # only populates now, on the re-send, never during the failed turn.
+        # The re-send itself also hits the same dropped connection, so this
+        # second unknown stays un-accepted (bounded, never blind-accepted).
+        # The events-search GET still succeeds (marker absent -> resend);
+        # the recorder captures the re-send's POST path/body before the
+        # connection drops again.
+        drop = http.client.RemoteDisconnected("dropped mid-response")
+
+        def record_then_drop(method, path, body=None, **kw):
+            if method != "POST":
+                return {"items": []}
+            if self.first_post is None:
+                self.first_post = (method, path, body)
+            raise drop
+
+        receipt_stream = io.StringIO()
+        with patch.object(transport, "api", new=record_then_drop), \
+                redirect_stdout(receipt_stream), \
+                self.assertRaises(http.client.RemoteDisconnected):
+            spawn.run_notify(self.notify_args(), self.child_window(), CHILD)
+        receipt = receipt_stream.getvalue()
+        self.assertIsNotNone(self.first_post)
+        self.assertEqual(self.first_post[0], "POST")
+        self.assertEqual(self.first_post[2].get("role"), "user")
+        self.assertEqual(self.first_post[1], f"/api/conversations/{PARENT}/events")
+        self.assertIn('"receipt": "unknown"', receipt)
+        self.assertIn("RemoteDisconnected/HTTP failure", receipt)
+        self.assertNotIn("dropped mid-response", receipt)
+        entry = spawn.load_ledger(PARENT)["req-report1"]
+        self.assertEqual(entry["attempts"], 2)
+        # Bound exhausted: a third same-request attempt reconciles the
+        # (still undelivered) marker through the events search read, POSTs
+        # nothing, and fails closed with the exhausted receipt.
+        bound_calls: list = []
+        bound_base = api_recorder({}, self.posts, {PARENT: []})
+
+        def bound_spy(method, path, body=None, timeout=60, redact_error=False):
+            bound_calls.append((method, path))
+            return bound_base(method, path, body, timeout, redact_error)
+
+        with patch.object(transport, "api", side_effect=bound_spy), \
+                self.assertRaises(SystemExit):
+            self.output_of(
+                spawn.run_notify, self.notify_args(), self.child_window(), CHILD
+            )
+        self.assertEqual(
+            [call for call in bound_calls if call[0] == "POST"], []
+        )
+        self.assertEqual(spawn.load_ledger(PARENT)["req-report1"]["attempts"], 2)
+        self.assertEqual(spawn.load_ledger(PARENT)["req-report1"]["status"], "unknown")
+
+    def test_http_op_classifies_transport_errors_fail_closed(self) -> None:
+        cases = (
+            http.client.RemoteDisconnected("dropped mid-response"),
+            http.client.BadStatusLine("''"),
+        )
+        for exc in cases:
+            for redact in (False, True):
+                with self.subTest(exc=type(exc).__name__, redact=redact), \
+                        patch.object(transport, "api", side_effect=exc):
+                    payload, receipt, error = ledger.http_op(
+                        "POST",
+                        f"/api/conversations/{PARENT}/events",
+                        {"role": "user"},
+                        redact_error=redact,
+                        operation="notify",
+                        request_id="req-tx1",
+                        ticket="#53",
+                        parent_id=PARENT,
+                        target_id=CHILD,
+                        emit=False,
+                    )
+                    self.assertIsNone(payload)
+                    self.assertIs(error, exc)
+                    self.assertEqual(receipt["receipt"], "unknown")
+                    serialized = json.dumps(receipt)
+                    self.assertNotIn("dropped mid-response", serialized)
+                    self.assertNotIn("''", serialized)
+                    if redact:
+                        self.assertIn("redacted", receipt["evidence"])
+                    else:
+                        self.assertIn(
+                            "RemoteDisconnected/HTTP failure",
+                            receipt["evidence"],
+                        )
+                        self.assertIn(
+                            "never claim exactly-once", receipt["evidence"]
+                        )
+
+    def test_http_op_retries_to_acceptance_within_bound(self) -> None:
+        drop = http.client.RemoteDisconnected("dropped mid-response")
+        calls = []
+
+        def drop_then_accept(method, path, body=None, **kw):
+            calls.append((method, path))
+            if len(calls) < ledger.MAX_HTTP_OP_ATTEMPTS:
+                raise drop
+            return {"ok": True}
+
+        with patch.object(transport, "api", side_effect=drop_then_accept):
+            for attempt in range(ledger.MAX_HTTP_OP_ATTEMPTS):
+                payload, receipt, error = ledger.http_op(
+                    "POST",
+                    f"/api/conversations/{PARENT}/events",
+                    {"role": "user"},
+                    redact_error=False,
+                    operation="notify",
+                    request_id="req-tx2",
+                    ticket="#53",
+                    parent_id=PARENT,
+                    target_id=CHILD,
+                    emit=False,
+                )
+                if error is None:
+                    break
+        self.assertIsNone(error)
+        self.assertEqual(receipt["receipt"], "accepted")
+        self.assertEqual(payload, {"ok": True})
+        self.assertEqual(len(calls), ledger.MAX_HTTP_OP_ATTEMPTS)
+
+    def test_http_op_retry_is_bounded(self) -> None:
+        drop = http.client.RemoteDisconnected("dropped mid-response")
+        with patch.object(transport, "api", side_effect=drop):
+            for _ in range(ledger.MAX_HTTP_OP_ATTEMPTS + 1):
+                payload, receipt, error = ledger.http_op(
+                    "POST",
+                    f"/api/conversations/{PARENT}/events",
+                    {"role": "user"},
+                    redact_error=False,
+                    operation="notify",
+                    request_id="req-tx3",
+                    ticket="#53",
+                    parent_id=PARENT,
+                    target_id=CHILD,
+                    emit=False,
+                )
+                self.assertIs(error, drop)
+                self.assertEqual(receipt["receipt"], "unknown")
+
     def test_unknown_notify_without_marker_resends_exactly_once(self) -> None:
         convs = {PARENT: {"id": PARENT, "status": "running"}}
         with patch.object(transport, "api", side_effect=TimeoutError("read timed out")
@@ -1102,6 +1393,309 @@ class NotifyIdentityTests(LedgerIsolatedTestCase):
         exhausted = spawn.load_ledger(PARENT)["req-report2"]
         self.assertEqual(exhausted["status"], "unknown")
         self.assertEqual(exhausted["attempts"], 2)
+
+
+class ParallelSameDirRoundTripTests(LedgerIsolatedTestCase):
+    """Issue #53: parallel same-working_dir dispatch+notify stays bound.
+
+    Two planning windows share one imported working_dir. The old resolver
+    silently picked the most recently updated same-dir conversation, so a
+    child's notify landed on the previous conversation. Regression contract:
+
+    - dispatch/notify never act on a silently-resolved identity: without an
+      explicit id they fail closed before any lookup or POST;
+    - two same-dir candidates make even the read-only heuristic fail closed
+      instead of deterministically resolving the previous conversation;
+    - explicit id binding wins: the parent ledger entry records the real
+      child, the child carries its own id (env + tag), and notify's
+      ``--parent-id`` cross-check rejects a foreign parent before posting.
+    """
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.wd_b = os.path.join(self.tmp, "proj-b")
+        os.makedirs(self.wd_b, exist_ok=True)
+        parent_a = self.parent_conv()
+        parent_b = self.parent_conv(id=OTHER, working_dir=self.wd_b)
+        self.parents = {PARENT: parent_a, OTHER: parent_b}
+        self.saved_conversation_id = os.environ.get("OPENHANDS_CONVERSATION_ID")
+        os.environ["OPENHANDS_CONVERSATION_ID"] = ""
+
+    def tearDown(self) -> None:
+        if self.saved_conversation_id is None:
+            os.environ.pop("OPENHANDS_CONVERSATION_ID", None)
+        else:
+            os.environ["OPENHANDS_CONVERSATION_ID"] = self.saved_conversation_id
+        super().tearDown()
+
+    def child_window(self, cid: str, parent_id: str, **over) -> dict:
+        conv = {
+            "id": cid,
+            "workspace": {"kind": "LocalWorkspace", "working_dir": self.wd},
+            "tags": {"clientsource": "agentcanvas", "department": "delivery"},
+            "parent_conversation_id": parent_id,
+        }
+        conv.update(over)
+        return conv
+
+    def dispatch_args(self, **over):
+        base = dict(
+            mode="dispatch",
+            this_id="",
+            profile_id=PROFILE,
+            department="delivery",
+            github_token_secret="",
+            prompt_file=self.prompt_file("task.txt", "continue ticket #53 work"),
+            max_iterations=500,
+            poll_sec=0,
+            timeout_sec=5400,
+            force=False,
+            ticket="#53",
+            request_id="req-p53a",
+            target_id="",
+            related_request_id="",
+        )
+        base.update(over)
+        return argparse.Namespace(**base)
+
+    def notify_args(self, **over):
+        base = dict(
+            mode="notify",
+            this_id="",
+            profile_id="",
+            department="",
+            github_token_secret="",
+            prompt_file=self.prompt_file(
+                "report.txt",
+                "engineering:report\ndepartment: delivery\nticket: #53\n"
+                "hop: done\nrequest: req-p53a\n",
+            ),
+            max_iterations=500,
+            poll_sec=0,
+            timeout_sec=5400,
+            force=False,
+            ticket="",
+            request_id="req-p53n",
+            target_id="",
+            related_request_id="",
+            parent_id="",
+        )
+        base.update(over)
+        return argparse.Namespace(**base)
+
+    def last_json(self, text: str) -> dict:
+        """Parse the last JSON object printed on a receipt stream."""
+        decoder = json.JSONDecoder()
+        idx = 0
+        result: dict = {}
+        while idx < len(text):
+            while idx < len(text) and text[idx] in " \t\r\n":
+                idx += 1
+            if idx >= len(text):
+                break
+            result, idx = decoder.raw_decode(text, idx)
+        return result
+
+    def run_main_gate(self, mode: str) -> None:
+        """Drive real main() with no --this-id and no conversation env.
+
+        Args:
+            mode: CLI mode under test ("dispatch" or "notify").
+        """
+        original_api = transport.api
+        original_argv = sys.argv
+        saved = {
+            key: os.environ.get(key)
+            for key in ("OPENHANDS_CONVERSATION_ID", "CONVERSATION_ID")
+        }
+        for key in saved:
+            os.environ.pop(key, None)
+        api_calls: list = []
+
+        def counting(method, path, body=None, timeout=60, redact_error=False):
+            api_calls.append((method, path))
+            return {"items": []}
+
+        output = io.StringIO()
+        try:
+            transport.api = counting
+            with tempfile.TemporaryDirectory() as raw:
+                prompt_path = Path(raw) / "prompt.txt"
+                prompt_path.write_text("deliver issue 53", encoding="utf-8")
+                sys.argv = ["spawn.py", "--mode", mode, "--profile-id", PROFILE,
+                            "--prompt-file", str(prompt_path)]
+                with redirect_stdout(output):
+                    with self.assertRaisesRegex(
+                        SystemExit, "requires an explicit conversation id"
+                    ):
+                        spawn.main()
+        finally:
+            transport.api = original_api
+            sys.argv = original_argv
+            for key, value in saved.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+        self.assertEqual(api_calls, [])
+
+    def test_mutating_modes_fail_closed_without_explicit_identity(self) -> None:
+        # The cwd heuristic would "resolve" something here; main() must
+        # refuse dispatch/notify without --this-id / env before any lookup.
+        with patch.object(identity, "cwd_match_paths", return_value=[self.wd]):
+            self.run_main_gate("dispatch")
+            self.run_main_gate("notify")
+        self.assertEqual(self.posts, [])
+        self.assertEqual(spawn.load_ledger(PARENT), {})
+        self.assertEqual(spawn.load_ledger(OTHER), {})
+
+    def test_heuristic_fails_closed_on_two_same_dir_candidates(self) -> None:
+        # The previous behavior picked updated_at max here — deterministically
+        # the *other* conversation under parallel same-dir runs.
+        items = [
+            {
+                "id": PARENT,
+                "workspace": {"working_dir": self.wd},
+                "tags": {"clientsource": "agentcanvas"},
+                "updated_at": "2026-01-01T00:00:00Z",
+            },
+            {
+                "id": OTHER,
+                "workspace": {"working_dir": self.wd},
+                "tags": {"clientsource": "agentcanvas"},
+                "updated_at": "2026-01-02T00:00:00Z",
+            },
+        ]
+        want = identity.norm_path(self.wd)
+        with self.assertRaisesRegex(SystemExit, "workspace identity is ambiguous"):
+            identity.pick_workspace_id(items, want)
+        self.assertEqual(
+            identity.workspace_candidates(items, want), [PARENT, OTHER]
+        )
+        with patch.object(identity, "cwd_match_paths", return_value=[want]), \
+            patch.object(identity, "search_running", return_value=items):
+            with self.assertRaisesRegex(SystemExit, "workspace identity is ambiguous"):
+                spawn.resolve_this(None)
+
+    def test_parallel_dispatch_and_notify_round_trip_with_explicit_ids(self) -> None:
+        # Issue #53: the child id is derived from the dispatching parent, so
+        # two same-dir windows can never produce the same child; each create
+        # body carries its own id (env + tag) and its own parent.
+        child_a_id = identity.dispatch_request_child_id(
+            PARENT, "delivery", "#53", "req-p53a"
+        )
+        child_b_id = identity.dispatch_request_child_id(
+            OTHER, "delivery", "#53", "req-p53b"
+        )
+        self.assertNotEqual(child_a_id, child_b_id)
+        events: dict = {PARENT: [], OTHER: []}
+        convs = {
+            **self.parents,
+            child_a_id: self.child_window(child_a_id, PARENT),
+            child_b_id: self.child_window(child_b_id, OTHER, working_dir=self.wd_b),
+        }
+        create_bodies: list = []
+        recorder = body_capturing_recorder(
+            convs, self.posts, [], creates=create_bodies
+        )
+        with patch.object(transport, "api", side_effect=recorder):
+            # Two dispatches from the two same-dir planning windows: explicit
+            # ids bind each request; each child gets its own derived id,
+            # never an accidental shared resolution.
+            receipt_a = self.output_of(
+                spawn.run_dispatch,
+                self.dispatch_args(),
+                self.parents[PARENT],
+                PARENT,
+            )
+            receipt_b = self.output_of(
+                spawn.run_dispatch,
+                self.dispatch_args(request_id="req-p53b"),
+                self.parents[OTHER],
+                OTHER,
+            )
+            self.assertEqual(
+                self.last_json(receipt_a)["child_conversation_id"], child_a_id
+            )
+            self.assertEqual(self.last_json(receipt_a)["id"], child_a_id)
+            self.assertEqual(
+                self.last_json(receipt_b)["child_conversation_id"], child_b_id
+            )
+            self.assertEqual(self.last_json(receipt_b)["id"], child_b_id)
+            ledger_a = spawn.load_ledger(PARENT)["req-p53a"]
+            self.assertEqual(ledger_a["child_id"], child_a_id)
+            self.assertEqual(ledger_a["parent_id"], PARENT)
+            self.assertEqual(ledger_a["status"], "accepted")
+            ledger_b = spawn.load_ledger(OTHER)["req-p53b"]
+            self.assertEqual(ledger_b["child_id"], child_b_id)
+            self.assertEqual(ledger_b["parent_id"], OTHER)
+
+            # The dispatch injected the child's own identity into the create
+            # body: OPENHANDS_CONVERSATION_ID env + conversation_id tag, and
+            # the parent field of each child names its own window.
+            self.assertEqual(len(create_bodies), 2)
+            body_a, body_b = create_bodies
+            self.assertEqual(body_a["conversation_id"], child_a_id)
+            self.assertEqual(body_a["parent_conversation_id"], PARENT)
+            self.assertEqual(
+                body_a["env"]["OPENHANDS_CONVERSATION_ID"], child_a_id
+            )
+            self.assertEqual(body_a["tags"]["conversation_id"], child_a_id)
+            self.assertEqual(body_b["conversation_id"], child_b_id)
+            self.assertEqual(body_b["parent_conversation_id"], OTHER)
+            self.assertEqual(
+                body_b["env"]["OPENHANDS_CONVERSATION_ID"], child_b_id
+            )
+            self.assertEqual(body_b["tags"]["conversation_id"], child_b_id)
+            self.assertNotEqual(
+                body_a["env"]["OPENHANDS_CONVERSATION_ID"],
+                body_b["env"]["OPENHANDS_CONVERSATION_ID"],
+            )
+
+            # Child A reports with --parent-id PARENT; the cross-check passes
+            # and the report lands on its real parent.
+            report_args = self.notify_args(
+                related_request_id="req-p53a",
+                parent_id=PARENT,
+            )
+            out = self.output_of(
+                spawn.run_notify, report_args, convs[child_a_id], child_a_id
+            )
+            self.assertIn('"receipt": "accepted"', out)
+            self.assertEqual(
+                self.posts.count(f"/api/conversations/{PARENT}/events"), 1
+            )
+            self.assertNotIn(
+                f"/api/conversations/{OTHER}/events", self.posts
+            )
+
+            # The same report claiming the WRONG (previous/parallel) parent is
+            # refused fail-closed before any lookup or POST.
+            wrong = self.notify_args(
+                related_request_id="req-p53a", parent_id=OTHER
+            )
+            with self.assertRaisesRegex(SystemExit, "does not match"):
+                spawn.run_notify(wrong, convs[child_a_id], child_a_id)
+            self.assertEqual(
+                self.posts.count(f"/api/conversations/{PARENT}/events"), 1
+            )
+            self.assertNotIn(
+                f"/api/conversations/{OTHER}/events", self.posts
+            )
+
+            # Env identity wins over the stale heuristic too: the dispatch-
+            # injected OPENHANDS_CONVERSATION_ID resolves this child even with
+            # two same-working_dir candidates, and notify cross-checks it.
+            with patch.dict(
+                os.environ, {"OPENHANDS_CONVERSATION_ID": child_a_id}
+            ):
+                resolved = spawn.resolve_this(None)
+            self.assertEqual(resolved, child_a_id)
+            with patch.dict(
+                os.environ, {"OPENHANDS_CONVERSATION_ID": child_b_id}
+            ):
+                resolved = spawn.resolve_this(None)
+            self.assertEqual(resolved, child_b_id)
 
 
 class ControlledHTTPServer(socketserver.ThreadingMixIn, http.server.HTTPServer):

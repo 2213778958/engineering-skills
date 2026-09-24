@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import http.client
 import json
 import os
 import re
@@ -179,6 +180,42 @@ def ledger_entry(
     }
 
 
+# Issue #53: transport-level failures that leave request acceptance unproven.
+# RemoteDisconnected is not a ConnectionError subclass, and BadStatusLine /
+# IncompleteRead surfaces as HTTPException, so both families must be listed.
+TRANSPORT_ERRORS: tuple[type[BaseException], ...] = (
+    http.client.RemoteDisconnected,
+    ConnectionError,
+    http.client.HTTPException,
+)
+
+# Bounded total attempts per logical request id: the first POST plus at most
+# one ledger-gated replay. The bound is enforced by the ledger attempts
+# counter in http_op callers, not by an internal retry loop.
+MAX_HTTP_OP_ATTEMPTS = 2
+
+
+def transport_error_evidence(method: str, path: str, redact_error: bool = False) -> str:
+    """Build the fixed evidence string for a transport-level failure.
+
+    Args:
+        method: HTTP method of the failed operation.
+        path: API path of the failed operation.
+        redact_error: When True, omit the path (credential-bound flows).
+
+    Returns:
+        A stable, templated evidence string. Exception text is never
+        included so receipt output cannot leak credential-bearing details.
+    """
+    if redact_error:
+        return f"{method} request connection lost; response never received (details redacted)"
+    return (
+        f"{method} {path} connection lost before a usable HTTP response "
+        "(RemoteDisconnected/HTTP failure); acceptance unproven "
+        "(never claim exactly-once)"
+    )
+
+
 def make_receipt(
     status: str,
     *,
@@ -280,7 +317,8 @@ def http_op(
 
     Returns:
         (payload, receipt, error). error is None on accepted; otherwise the
-        original SystemExit/TimeoutError for the caller to record and raise.
+        original SystemExit/TimeoutError/transport exception for the caller
+        to record and raise.
     """
     try:
         payload = transport.api(method, path, body, timeout=timeout, redact_error=redact_error)
@@ -326,6 +364,26 @@ def http_op(
                 f"{method} {path} timed out or response lost; "
                 "acceptance unproven (never claim exactly-once)"
             ),
+        )
+        if emit:
+            emit_receipt(receipt)
+        return None, receipt, exc
+    except TRANSPORT_ERRORS as exc:
+        # Issue #53: a dropped connection or malformed HTTP exchange leaves
+        # acceptance unproven. The receipt must be recorded so the same
+        # --request-id reconciliation can distinguish accepted-but-lost from
+        # never-sent; the bounded retry itself stays ledger-gated upstream
+        # (attempts >= MAX_HTTP_OP_ATTEMPTS). Evidence stays templated so no
+        # exception detail (which may embed credentials) is printed.
+        receipt = make_receipt(
+            "unknown",
+            operation=operation,
+            request_id=request_id,
+            ticket=ticket,
+            department=department,
+            parent_id=parent_id,
+            target_id=target_id,
+            evidence=transport_error_evidence(method, path, redact_error=redact_error),
         )
         if emit:
             emit_receipt(receipt)

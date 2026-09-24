@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 import uuid
@@ -57,6 +58,7 @@ from canvas_sessions.identity import (
     updated_key,
     pick_workspace_id,
     resolve_this,
+    require_explicit_this,
 )
 from canvas_sessions.ledger import (
     prompt_digest,
@@ -152,6 +154,14 @@ def main() -> None:
         default="",
         help="legacy dispatch correlation id (correlation tags)",
     )
+    parser.add_argument(
+        "--parent-id",
+        default="",
+        help=(
+            "notify: expected parent_conversation_id of this conversation; "
+            "cross-checked before posting (fail-closed on mismatch)"
+        ),
+    )
     parser.add_argument("--allow-legacy-report", action="store_true")
     parser.add_argument("--max-iterations", type=int, default=500)
     parser.add_argument("--poll-sec", type=int, default=0)
@@ -161,7 +171,15 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    this_id = identity.resolve_this(args.this_id.strip() or None)
+    # F1 (issue #53): dispatch and notify must bind identity explicitly.
+    # The same-working_dir + most-recent heuristic deterministically picks
+    # the previous conversation under parallel same-dir runs, so these modes
+    # fail-closed without --this-id / OPENHANDS_CONVERSATION_ID instead of
+    # silently acting on the wrong conversation.
+    explicit_this = args.this_id.strip() or os.environ.get("OPENHANDS_CONVERSATION_ID", "").strip()
+    if args.mode in ("dispatch", "notify"):
+        require_explicit_this(explicit_this, args.mode)
+    this_id = identity.resolve_this(explicit_this or None)
     parent = transport.get_conversation(this_id)
     if parent is None:
         raise SystemExit("GET this conversation failed")
@@ -192,11 +210,11 @@ def main() -> None:
         return
 
     if args.mode == "notify":
-        notify.run_notify(args, parent)
+        notify.run_notify(args, parent, this_id)
         return
 
     if args.mode == "dispatch":
-        dispatch.run_dispatch(args, parent)
+        dispatch.run_dispatch(args, parent, this_id)
         return
 
     if not args.profile_id or not args.prompt_file:

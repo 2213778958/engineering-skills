@@ -52,6 +52,7 @@ def conversation_body(
     max_iterations: int,
     parent_id: str | None = None,
     secrets: dict[str, dict[str, object]] | None = None,
+    env: dict[str, str] | None = None,
 ) -> dict[str, object]:
     """Build a child creation request without implicit credential inheritance.
 
@@ -64,6 +65,7 @@ def conversation_body(
         max_iterations: Agent iteration limit.
         parent_id: Optional department parent conversation.
         secrets: Explicit authorized-department secret mapping.
+        env: Explicit child environment (no implicit os.environ inheritance).
 
     Returns:
         StartConversationRequest-compatible payload.
@@ -87,11 +89,21 @@ def conversation_body(
         body["parent_conversation_id"] = parent_id
     if secrets:
         body["secrets"] = secrets
+    if env:
+        body["env"] = env
     return body
 
 
 def run_dispatch(args: argparse.Namespace, parent: dict, this_id: str = "") -> None:
     """Dispatch a department child under a request-scoped identity.
+
+    Issue #53: the dispatching conversation is bound explicitly — main()
+    refuses dispatch without ``--this-id``/env — and this seam injects the
+    resolved identity into the child: the child id is set as
+    ``OPENHANDS_CONVERSATION_ID`` in the child environment (all runs) and
+    mirrored into a ``conversation_id`` tag when absent, so the child's own
+    sessions modes and its notify parent cross-check never fall back to the
+    ambiguous same-working_dir heuristic.
 
     Args:
         args: Parsed CLI arguments.
@@ -137,8 +149,16 @@ def run_dispatch(args: argparse.Namespace, parent: dict, this_id: str = "") -> N
     child_id = str((entry or {}).get("child_id") or "") or identity.dispatch_request_child_id(
         this_id, department, ticket, request_id
     )
+    # Issue #53: inject the child's own id into the child runtime so its
+    # sessions modes resolve identity explicitly (env first), and mirror it
+    # into a tag when absent so the persisted child carries the binding.
     tags = identity.canvas_tags(parent)
     tags["department"] = department
+    tags.setdefault("conversation_id", child_id)
+    child_env = {
+        **{str(k): str(v) for k, v in (parent.get("env") or {}).items() if isinstance(v, (str, int, float))},
+        "OPENHANDS_CONVERSATION_ID": child_id,
+    }
     # Carried correlated-session path (#24): a legacy --dispatch-id binds the
     # created child to the ticket so a follow-up GET can verify the identity
     # actually persisted before the dispatch is recorded as accepted.
@@ -156,6 +176,7 @@ def run_dispatch(args: argparse.Namespace, parent: dict, this_id: str = "") -> N
         max_iterations=args.max_iterations,
         parent_id=this_id,
         secrets=secrets,
+        env=child_env,
     )
     payload, receipt, err = ledger.http_op(
         "POST",

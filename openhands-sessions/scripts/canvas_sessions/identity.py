@@ -293,19 +293,79 @@ def updated_key(item: dict[str, Any]) -> str:
     return ""
 
 
+def workspace_candidates(items: list[dict[str, Any]], want: str) -> list[str]:
+    """Return every conversation id whose workspace matches a normalized dir.
+
+    Args:
+        items: Conversation records from a search.
+        want: Normalized (``norm_path``) working_dir to match.
+
+    Returns:
+        All matching ids in the caller-provided order. The caller decides
+        what to do with more than one candidate; this function never picks
+        one, because most-recently-updated is not a safe disambiguator under
+        parallel same-working_dir conversations.
+    """
+    return [str(x["id"]) for x in items if is_workspace_hit(x, want)]
+
+
 def pick_workspace_id(items: list[dict[str, Any]], want: str) -> str | None:
-    hits = [x for x in items if is_workspace_hit(x, want)]
+    """Resolve one workspace-matching id, failing closed on ambiguity.
+
+    Args:
+        items: Conversation records from a search.
+        want: Normalized (``norm_path``) working_dir to match.
+
+    Returns:
+        The single matching id, or None when none matches.
+
+    Raises:
+        SystemExit: When several conversations match the same working_dir;
+            silently picking the most recently updated would deterministically
+            resolve the wrong conversation under parallel same-dir runs.
+    """
+    hits = workspace_candidates(items, want)
     if not hits:
         return None
-    hits.sort(key=updated_key, reverse=True)
-    return str(hits[0]["id"])
+    if len(hits) > 1:
+        raise SystemExit(
+            "workspace identity is ambiguous: "
+            f"{len(hits)} conversations share working_dir {want!r}: "
+            + ", ".join(hits)
+            + "; pass --this-id or OPENHANDS_CONVERSATION_ID explicitly"
+        )
+    return hits[0]
 
 
 def resolve_this(explicit: str | None) -> str:
+    """Resolve the Canvas conversation id of the caller, fail-closed.
+
+    Resolution order: explicit ``--this-id``, then the conversation-id
+    environment, then the same-working_dir heuristic. Explicit and
+    environment values must resolve through the API; a missing conversation
+    is an error, never a fallthrough into the heuristic. The heuristic is
+    read-only mode support only and refuses multiple candidates instead of
+    silently picking one.
+
+    Args:
+        explicit: ``--this-id`` value, or None when omitted.
+
+    Returns:
+        The resolved Canvas conversation id.
+
+    Raises:
+        SystemExit: When an explicit id or env id does not exist, when the
+            heuristic has multiple candidates, or when nothing matches.
+    """
     if explicit:
         conv = transport.get_conversation(explicit)
         if conv and conv.get("id"):
             return str(conv["id"])
+        raise SystemExit(
+            f"--this-id {explicit!r} did not resolve to a Canvas conversation "
+            "(a 404 means it is not a Canvas GET id); do not fall back to "
+            "the working_dir heuristic"
+        ) from None
     for key in ("OPENHANDS_CONVERSATION_ID", "CONVERSATION_ID"):
         val = os.environ.get(key, "").strip()
         if not val:
@@ -313,6 +373,11 @@ def resolve_this(explicit: str | None) -> str:
         conv = transport.get_conversation(val)
         if conv and conv.get("id"):
             return str(conv["id"])
+        raise SystemExit(
+            f"{key}={val!r} did not resolve to a Canvas conversation "
+            "(a 404 means it is not a Canvas GET id); do not fall back to "
+            "the working_dir heuristic"
+        ) from None
     wants = cwd_match_paths()
     running = search_running()
     for want in wants:
@@ -328,3 +393,25 @@ def resolve_this(explicit: str | None) -> str:
         "cannot resolve this Canvas conversation id. "
         "Do not pass CURSOR_CONVERSATION_ID. Do not grep disk. Do not python -c GET."
     )
+
+
+def require_explicit_this(explicit: str | None, mode: str) -> None:
+    """Reject mutating modes that would rely on heuristic identity resolution.
+
+    Issue #53: dispatch and notify write into another conversation, so a
+    silently-resolved (same-working_dir, most-recent) identity can act on the
+    previous parallel conversation. These modes require an explicit
+    ``--this-id`` or ``OPENHANDS_CONVERSATION_ID``; the heuristic fallback is
+    reserved for read-only modes.
+
+    Args:
+        explicit: The explicitly provided id (flag or env), or None/empty.
+        mode: The CLI mode requesting resolution (for the error message).
+    """
+    if not explicit:
+        raise SystemExit(
+            f"{mode} requires an explicit conversation id: pass --this-id or "
+            "set OPENHANDS_CONVERSATION_ID; the same-working_dir heuristic "
+            "is ambiguous under parallel same-dir conversations and is "
+            "refused for mutating modes (fail-closed)"
+        )

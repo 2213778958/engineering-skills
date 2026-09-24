@@ -8,6 +8,7 @@ import re
 import uuid
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 from . import identity, transport
 import canvas_sessions.ledger as ledger
@@ -170,6 +171,24 @@ def event_text_blob(event: object) -> str:
     return "\n".join(part for part in parts if part)
 
 
+def event_search_path(cid: str) -> str:
+    """Build the conversation-scoped events-search path and query.
+
+    The bare ``GET /api/conversations/{id}/events`` form is rejected by the
+    server (422); events are read back through the search endpoint with the
+    conversation id in the path, newest first (same shape the watch adapter
+    uses).
+
+    Args:
+        cid: Conversation whose persisted events are read.
+
+    Returns:
+        Path plus query string for the events search endpoint.
+    """
+    qs = urlencode({"limit": 100, "sort_order": "TIMESTAMP_DESC"})
+    return f"/api/conversations/{cid}/events/search?{qs}"
+
+
 def target_event_texts(cid: str) -> list[str]:
     """Read the target conversation's recent events as text blobs.
 
@@ -178,12 +197,13 @@ def target_event_texts(cid: str) -> list[str]:
 
     Returns:
         One text blob per event, best-effort. An unreadable events endpoint
-        (missing, rejected, timed out) yields an empty list so callers treat
-        delivery as unproven and keep the bounded re-send as the fallback.
+        (missing, rejected, timed out, connection lost) yields an empty list
+        so callers treat delivery as unproven and keep the bounded re-send
+        as the fallback instead of aborting the reconcile.
     """
     try:
-        payload = transport.api("GET", f"/api/conversations/{cid}/events")
-    except (SystemExit, TimeoutError):
+        payload = transport.api("GET", event_search_path(cid))
+    except (SystemExit, TimeoutError, *ledger.TRANSPORT_ERRORS):
         return []
     items: list[object] = []
     if isinstance(payload, list):
@@ -214,6 +234,11 @@ def event_marker(text: str) -> str:
 def run_notify(args: argparse.Namespace, parent: dict, this_id: str = "") -> None:
     """Notify the parent planning conversation, child->parent only.
 
+    Issue #53: when ``--parent-id`` (or OPENHANDS_PARENT_CONVERSATION_ID) is
+    given, it is cross-checked against this conversation's persisted
+    ``parent_conversation_id`` before any lookup or POST; a mismatch exits
+    non-zero so a mis-attributed report can never land on a guessed parent.
+
     Args:
         args: Parsed CLI arguments.
         parent: This (department) conversation payload.
@@ -223,6 +248,13 @@ def run_notify(args: argparse.Namespace, parent: dict, this_id: str = "") -> Non
     parent_id = parent.get("parent_conversation_id")
     if not parent_id:
         raise SystemExit("notify needs parent_conversation_id. Planning must not notify.")
+    expected_parent = str(getattr(args, "parent_id", "") or "").strip()
+    if expected_parent and expected_parent != str(parent_id):
+        raise SystemExit(
+            f"notify rejected: --parent-id {expected_parent!r} does not match "
+            f"this conversation's parent {parent_id!r}; fail-closed, never "
+            "post to a guessed parent"
+        )
     if not args.prompt_file:
         raise SystemExit("notify needs --prompt-file")
     text = Path(args.prompt_file).read_text(encoding="utf-8")
