@@ -1,8 +1,9 @@
 ﻿"""Tests for secure department GitHub credential binding.
 
-Fixture justification: patching ``spawn.api`` / ``spawn.search_items`` /
-``spawn.urlopen`` follows the established in-repo fixture pattern so tests
-drive real adapter code paths deterministically without network access.
+Fixture justification: patching the transport and identity seams
+(``transport.api`` / ``transport.urlopen`` / ``transport.session_key`` /
+``identity.search_items``) follows the established in-repo fixture pattern so
+tests drive real adapter code paths deterministically without network access.
 The dispatch ledger is redirected to a temp directory via the
 ``OPENHANDS_DISPATCH_LEDGER_DIR`` override so tests never touch the real
 user ledger. One timeout test uses a local controlled HTTP fixture on
@@ -34,6 +35,7 @@ assert SPEC and SPEC.loader
 spawn = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = spawn
 SPEC.loader.exec_module(spawn)
+from canvas_sessions import dispatch, identity, resume, transport
 class GitHubBindingTests(unittest.TestCase):
     """Exercise mapping, rejection, redaction, and isolation behavior."""
     def test_binding_maps_registered_source_to_consumer(self) -> None:
@@ -59,8 +61,7 @@ class GitHubBindingTests(unittest.TestCase):
     def test_probe_rejects_authentication_and_unavailable_source(self) -> None:
         for code, message in ((401, "authentication failed"), (404, "unavailable")):
             error = spawn.HTTPError("url", code, "error", {}, None)
-            with self.subTest(code=code), patch.object(
-                spawn, "urlopen", side_effect=error
+            with self.subTest(code=code), patch.object(transport, "urlopen", side_effect=error
             ), self.assertRaisesRegex(SystemExit, message):
                 spawn.probe_secret_source(
                     "GITHUB_PERSONAL_ACCESS_TOKEN", "session-key"
@@ -69,7 +70,7 @@ class GitHubBindingTests(unittest.TestCase):
         error = spawn.HTTPError(
             "url", 422, "error", {}, io.BytesIO(b"server echoed secret material")
         )
-        with patch.object(spawn, "urlopen", side_effect=error), self.assertRaises(
+        with patch.object(transport, "urlopen", side_effect=error), self.assertRaises(
             SystemExit
         ) as caught:
             spawn.api(
@@ -84,7 +85,7 @@ class GitHubBindingTests(unittest.TestCase):
         self.assertNotIn("SOURCE_TOKEN", text)
     def test_create_network_error_is_redacted(self) -> None:
         error = spawn.URLError("server echoed secret material")
-        with patch.object(spawn, "urlopen", side_effect=error), self.assertRaises(
+        with patch.object(transport, "urlopen", side_effect=error), self.assertRaises(
             SystemExit
         ) as caught:
             spawn.api(
@@ -133,7 +134,9 @@ class GitHubBindingTests(unittest.TestCase):
         )
 
     def test_dispatch_get_child_uses_180_second_timeout(self) -> None:
-        source = MODULE_PATH.read_text(encoding="utf-8")
+        source = (MODULE_PATH.parent / "canvas_sessions" / "transport.py").read_text(
+            encoding="utf-8"
+        )
         pattern = re.compile(
             r"checked = get_conversation\(cid, timeout=180\)\n.{0,120}?if checked is None",
             re.DOTALL,
@@ -141,21 +144,25 @@ class GitHubBindingTests(unittest.TestCase):
         self.assertIsNotNone(pattern.search(source))
 
     def test_event_post_timeouts_use_module_constant(self) -> None:
-        source = MODULE_PATH.read_text(encoding="utf-8")
+        source = (MODULE_PATH.parent / "canvas_sessions" / "transport.py").read_text(
+            encoding="utf-8"
+        )
         self.assertIn("EVENT_POST_TIMEOUT = 180", source)
-        for operation in ("resume", "notify"):
-            with self.subTest(operation=operation):
+        seam_dir = MODULE_PATH.parent / "canvas_sessions"
+        negative = ""
+        for seam in ("resume", "notify"):
+            seam_source = (seam_dir / f"{seam}.py").read_text(encoding="utf-8")
+            negative += seam_source
+            with self.subTest(operation=seam):
                 self.assertIn(
-                    "timeout=EVENT_POST_TIMEOUT,\n"
-                    f'            operation="{operation}",',
-                    source,
+                    "timeout=transport.EVENT_POST_TIMEOUT,\n"
+                    f'            operation="{seam}",',
+                    seam_source,
                 )
-        self.assertNotIn("timeout=60,\n            operation=", source)
+        self.assertNotIn("timeout=60,\n            operation=", negative)
 
     def test_duplicate_active_dispatch_is_rejected(self) -> None:
-        with patch.object(
-            spawn,
-            "search_items",
+        with patch.object(identity, "search_items",
             return_value=[
                 {
                     "id": "existing",
@@ -170,16 +177,14 @@ class GitHubBindingTests(unittest.TestCase):
             )
 
     def test_duplicate_dispatch_force_is_allowed(self) -> None:
-        with patch.object(spawn, "search_items") as search:
+        with patch.object(identity, "search_items") as search:
             spawn.refuse_duplicate_dispatch(
                 "parent", {"department": "delivery"}, force=True
             )
         search.assert_not_called()
 
     def test_duplicate_guard_ignores_other_parent_department_and_terminal(self) -> None:
-        with patch.object(
-            spawn,
-            "search_items",
+        with patch.object(identity, "search_items",
             return_value=[
                 {
                     "id": "other-parent",
@@ -205,8 +210,7 @@ class GitHubBindingTests(unittest.TestCase):
 
     def test_search_items_fails_closed_on_uncertain_payload(self) -> None:
         for payload in ({}, {"items": ["not-an-item"]}):
-            with self.subTest(payload=payload), patch.object(
-                spawn, "api", return_value=payload
+            with self.subTest(payload=payload), patch.object(transport, "api", return_value=payload
             ), self.assertRaisesRegex(SystemExit, "invalid"):
                 spawn.search_items()
 
@@ -215,16 +219,14 @@ class GitHubBindingTests(unittest.TestCase):
             {"items": [{"id": "first"}], "has_more": True},
             {"items": [{"id": "second"}], "has_more": False},
         ]
-        with patch.object(spawn, "api", side_effect=pages) as api:
+        with patch.object(transport, "api", side_effect=pages) as api:
             self.assertEqual(
                 [item["id"] for item in spawn.search_items()], ["first", "second"]
             )
         self.assertIn("offset=1", api.call_args_list[1].args[1])
 
     def test_search_items_follows_cursor_pages(self) -> None:
-        with patch.object(
-            spawn,
-            "api",
+        with patch.object(transport, "api",
             side_effect=[
                 {"items": [{"id": "first"}], "next_cursor": "next"},
                 {"items": [{"id": "second"}]},
@@ -236,9 +238,7 @@ class GitHubBindingTests(unittest.TestCase):
         self.assertIn("cursor=next", api.call_args_list[1].args[1])
 
     def test_search_items_follows_page_id_pages_without_offset_progression(self) -> None:
-        with patch.object(
-            spawn,
-            "api",
+        with patch.object(transport, "api",
             side_effect=[
                 {"items": [{"id": "first"}], "next_page_id": "page-2"},
                 {"items": [{"id": "second"}]},
@@ -251,9 +251,7 @@ class GitHubBindingTests(unittest.TestCase):
         self.assertIn("offset=0", api.call_args_list[1].args[1])
 
     def test_search_items_rejects_repeated_page_id(self) -> None:
-        with patch.object(
-            spawn,
-            "api",
+        with patch.object(transport, "api",
             side_effect=[
                 {"items": [{"id": "first"}], "next_page_id": "same"},
                 {"items": [{"id": "second"}], "next_page_id": "same"},
@@ -263,22 +261,19 @@ class GitHubBindingTests(unittest.TestCase):
 
     def test_search_items_rejects_repeated_page(self) -> None:
         page = {"items": [{"id": "same"}], "has_more": True}
-        with patch.object(spawn, "api", side_effect=[page, page]), self.assertRaisesRegex(
+        with patch.object(transport, "api", side_effect=[page, page]), self.assertRaisesRegex(
             SystemExit, "repeated page"
         ):
             spawn.search_items()
 
 
     def test_search_items_rejects_repeated_cursor(self) -> None:
-        with patch.object(
-            spawn, "api", return_value={"items": [], "next_cursor": "same"}
+        with patch.object(transport, "api", return_value={"items": [], "next_cursor": "same"}
         ), self.assertRaisesRegex(SystemExit, "next cursor"):
             spawn.search_items()
 
     def test_search_items_rejects_cursor_cycle(self) -> None:
-        with patch.object(
-            spawn,
-            "api",
+        with patch.object(transport, "api",
             side_effect=[
                 {"items": [], "next_cursor": "a"},
                 {"items": [], "next_cursor": "b"},
@@ -513,9 +508,7 @@ class ProfileIdentityTests(LedgerIsolatedTestCase):
         )
 
     def test_name_profile_fails_closed_before_any_post(self) -> None:
-        with patch.object(
-            spawn,
-            "api",
+        with patch.object(transport, "api",
             side_effect=api_recorder({}, self.posts),
         ), self.assertRaisesRegex(SystemExit, "agent-profiles"):
             spawn.run_dispatch(
@@ -537,7 +530,7 @@ class DispatchLedgerTests(LedgerIsolatedTestCase):
 
     def test_same_request_retry_reconciles_without_second_post(self) -> None:
         recorder = api_recorder({CHILD: self.child_conv()}, self.posts)
-        with patch.object(spawn, "api", side_effect=recorder):
+        with patch.object(transport, "api", side_effect=recorder):
             self.output_of(
                 spawn.run_dispatch, self.dispatch_args(), self.parent_conv()
             )
@@ -554,7 +547,7 @@ class DispatchLedgerTests(LedgerIsolatedTestCase):
 
     def test_changed_payload_same_request_fails_closed_before_post(self) -> None:
         recorder = api_recorder({CHILD: self.child_conv()}, self.posts)
-        with patch.object(spawn, "api", side_effect=recorder):
+        with patch.object(transport, "api", side_effect=recorder):
             self.output_of(
                 spawn.run_dispatch, self.dispatch_args(), self.parent_conv()
             )
@@ -569,8 +562,7 @@ class DispatchLedgerTests(LedgerIsolatedTestCase):
         self.assertEqual(self.posts, ["/api/conversations"])
 
     def test_dispatch_timeout_records_unknown_then_replay_reconciles(self) -> None:
-        with patch.object(
-            spawn, "api", side_effect=TimeoutError("connection timed out")
+        with patch.object(transport, "api", side_effect=TimeoutError("connection timed out")
         ), self.assertRaises(TimeoutError):
             self.output_of(
                 spawn.run_dispatch, self.dispatch_args(), self.parent_conv()
@@ -585,7 +577,7 @@ class DispatchLedgerTests(LedgerIsolatedTestCase):
             {retry_child: self.child_conv(cid=retry_child, status="running")},
             self.posts,
         )
-        with patch.object(spawn, "api", side_effect=recorder):
+        with patch.object(transport, "api", side_effect=recorder):
             receipt = self.output_of(
                 spawn.run_dispatch, self.dispatch_args(), self.parent_conv()
             )
@@ -594,17 +586,14 @@ class DispatchLedgerTests(LedgerIsolatedTestCase):
         self.assertIn('"reconciled": true', receipt)
 
     def test_rejected_dispatch_is_recorded_and_not_retried(self) -> None:
-        with patch.object(
-            spawn,
-            "api",
+        with patch.object(transport, "api",
             side_effect=SystemExit("HTTP 422 POST /api/conversations: bad request"),
         ), self.assertRaisesRegex(SystemExit, "HTTP 422"):
             self.output_of(
                 spawn.run_dispatch, self.dispatch_args(), self.parent_conv()
             )
         self.assertEqual(spawn.load_ledger(PARENT)["req-aaa1"]["status"], "rejected")
-        with patch.object(
-            spawn, "api", side_effect=api_recorder({}, self.posts)
+        with patch.object(transport, "api", side_effect=api_recorder({}, self.posts)
         ), self.assertRaisesRegex(SystemExit, "previously rejected"):
             spawn.run_dispatch(self.dispatch_args(), self.parent_conv(), PARENT)
         self.assertEqual(self.posts, [])
@@ -615,7 +604,7 @@ class DispatchLedgerTests(LedgerIsolatedTestCase):
             TARGET: self.child_conv(cid=TARGET, status="running"),
             CHILD: self.child_conv(cid=CHILD, status="running"),
         }
-        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+        with patch.object(transport, "api", side_effect=api_recorder(convs, self.posts)):
             with self.assertRaisesRegex(SystemExit, "already exists"):
                 spawn.run_dispatch(
                     self.dispatch_args(request_id="req-new9"),
@@ -640,7 +629,7 @@ class ResumeTests(LedgerIsolatedTestCase):
 
     def test_resume_finished_child_posts_event_exact_target_without_create(self) -> None:
         convs = {TARGET: self.child_conv(cid=TARGET, status="finished")}
-        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+        with patch.object(transport, "api", side_effect=api_recorder(convs, self.posts)):
             out = self.output_of(
                 spawn.run_resume, self.resume_args(), self.parent_conv()
             )
@@ -653,9 +642,7 @@ class ResumeTests(LedgerIsolatedTestCase):
         prompt = "resume: continue hop 2 with request req-res1 details"
         convs = {TARGET: self.child_conv(cid=TARGET, status="finished")}
         bodies: list = []
-        with patch.object(
-            spawn,
-            "api",
+        with patch.object(transport, "api",
             side_effect=body_capturing_recorder(convs, self.posts, bodies),
         ):
             self.output_of(
@@ -675,7 +662,7 @@ class ResumeTests(LedgerIsolatedTestCase):
         self.assertNotIn("llm_message", bodies[0])
 
     def test_resume_rejects_missing_target(self) -> None:
-        with patch.object(spawn, "api", side_effect=api_recorder({}, self.posts)):
+        with patch.object(transport, "api", side_effect=api_recorder({}, self.posts)):
             with self.assertRaisesRegex(SystemExit, "does not exist"):
                 spawn.run_resume(self.resume_args(), self.parent_conv(), PARENT)
         self.assertEqual(self.posts, [])
@@ -686,7 +673,7 @@ class ResumeTests(LedgerIsolatedTestCase):
                 cid=TARGET, status="finished", parent_conversation_id=OTHER
             )
         }
-        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+        with patch.object(transport, "api", side_effect=api_recorder(convs, self.posts)):
             with self.assertRaisesRegex(SystemExit, "direct child"):
                 spawn.run_resume(self.resume_args(), self.parent_conv(), PARENT)
         self.assertEqual(self.posts, [])
@@ -697,7 +684,7 @@ class ResumeTests(LedgerIsolatedTestCase):
                 cid=TARGET, status="finished", tags={"clientsource": "agentcanvas", "department": "acceptance"}
             )
         }
-        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+        with patch.object(transport, "api", side_effect=api_recorder(convs, self.posts)):
             with self.assertRaisesRegex(SystemExit, "department"):
                 spawn.run_resume(
                     self.resume_args(department="delivery"),
@@ -714,7 +701,7 @@ class ResumeTests(LedgerIsolatedTestCase):
                 workspace={"kind": "LocalWorkspace", "working_dir": os.path.join(self.tmp, "elsewhere")},
             )
         }
-        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+        with patch.object(transport, "api", side_effect=api_recorder(convs, self.posts)):
             with self.assertRaisesRegex(SystemExit, "workspace"):
                 spawn.run_resume(self.resume_args(), self.parent_conv(), PARENT)
         self.assertEqual(self.posts, [])
@@ -725,21 +712,21 @@ class ResumeTests(LedgerIsolatedTestCase):
                 cid=TARGET, status="finished", tags={"department": "delivery"}
             )
         }
-        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+        with patch.object(transport, "api", side_effect=api_recorder(convs, self.posts)):
             with self.assertRaisesRegex(SystemExit, "clientsource"):
                 spawn.run_resume(self.resume_args(), self.parent_conv(), PARENT)
         self.assertEqual(self.posts, [])
 
     def test_resume_rejects_active_target_without_concurrent_run(self) -> None:
         convs = {TARGET: self.child_conv(cid=TARGET, status="running")}
-        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+        with patch.object(transport, "api", side_effect=api_recorder(convs, self.posts)):
             with self.assertRaisesRegex(SystemExit, "active"):
                 spawn.run_resume(self.resume_args(), self.parent_conv(), PARENT)
         self.assertEqual(self.posts, [])
 
     def test_resume_rejects_stopped_target_without_silent_success(self) -> None:
         convs = {TARGET: self.child_conv(cid=TARGET, status="stopped")}
-        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+        with patch.object(transport, "api", side_effect=api_recorder(convs, self.posts)):
             with self.assertRaisesRegex(SystemExit, "stopped"):
                 spawn.run_resume(self.resume_args(), self.parent_conv(), PARENT)
         self.assertEqual(self.posts, [])
@@ -749,14 +736,14 @@ class ResumeTests(LedgerIsolatedTestCase):
         ledger.pop("req-disp0")
         spawn.save_ledger(PARENT, ledger)
         convs = {TARGET: self.child_conv(cid=TARGET, status="finished")}
-        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+        with patch.object(transport, "api", side_effect=api_recorder(convs, self.posts)):
             with self.assertRaisesRegex(SystemExit, "authorized department child"):
                 spawn.run_resume(self.resume_args(), self.parent_conv(), PARENT)
         self.assertEqual(self.posts, [])
 
     def test_resume_ticket_mismatch_is_rejected(self) -> None:
         convs = {TARGET: self.child_conv(cid=TARGET, status="finished")}
-        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+        with patch.object(transport, "api", side_effect=api_recorder(convs, self.posts)):
             with self.assertRaisesRegex(SystemExit, "ticket"):
                 spawn.run_resume(
                     self.resume_args(ticket="#42"), self.parent_conv(), PARENT
@@ -765,7 +752,7 @@ class ResumeTests(LedgerIsolatedTestCase):
 
     def test_resume_error_target_allows_single_bounded_attempt(self) -> None:
         convs = {TARGET: self.child_conv(cid=TARGET, status="error")}
-        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+        with patch.object(transport, "api", side_effect=api_recorder(convs, self.posts)):
             self.output_of(
                 spawn.run_resume, self.resume_args(), self.parent_conv()
             )
@@ -777,8 +764,7 @@ class ResumeTests(LedgerIsolatedTestCase):
         self.assertEqual(self.posts.count(f"/api/conversations/{TARGET}/events"), 1)
 
     def test_resume_timeout_yields_unknown_then_reconciles_running(self) -> None:
-        with patch.object(
-            spawn, "api", side_effect=TimeoutError("read timed out")
+        with patch.object(transport, "api", side_effect=TimeoutError("read timed out")
         ), self.assertRaises(TimeoutError):
             self.output_of(
                 spawn.run_resume, self.resume_args(), self.parent_conv()
@@ -787,7 +773,7 @@ class ResumeTests(LedgerIsolatedTestCase):
         self.assertEqual(entry["status"], "unknown")
         self.assertEqual(entry["target_id"], TARGET)
         convs = {TARGET: self.child_conv(cid=TARGET, status="running")}
-        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+        with patch.object(transport, "api", side_effect=api_recorder(convs, self.posts)):
             receipt = self.output_of(
                 spawn.run_resume, self.resume_args(), self.parent_conv()
             )
@@ -796,14 +782,13 @@ class ResumeTests(LedgerIsolatedTestCase):
         self.assertIn('"reconciled": true', receipt)
 
     def test_resume_unknown_still_finished_resends_once_then_unknown(self) -> None:
-        with patch.object(
-            spawn, "api", side_effect=TimeoutError("read timed out")
+        with patch.object(transport, "api", side_effect=TimeoutError("read timed out")
         ), self.assertRaises(TimeoutError):
             self.output_of(
                 spawn.run_resume, self.resume_args(), self.parent_conv()
             )
         convs = {TARGET: self.child_conv(cid=TARGET, status="finished")}
-        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+        with patch.object(transport, "api", side_effect=api_recorder(convs, self.posts)):
             self.output_of(
                 spawn.run_resume, self.resume_args(), self.parent_conv()
             )
@@ -821,8 +806,7 @@ class ResumeTests(LedgerIsolatedTestCase):
     def test_unknown_resume_reconciles_from_persisted_event_marker(self) -> None:
         prompt = "resume: continue hop 2 for #51 without a request line"
         args = self.resume_args(prompt_file=self.prompt_file("resume51.txt", prompt))
-        with patch.object(
-            spawn, "api", side_effect=TimeoutError("read timed out")
+        with patch.object(transport, "api", side_effect=TimeoutError("read timed out")
         ), self.assertRaises(TimeoutError):
             self.output_of(spawn.run_resume, args, self.parent_conv())
         entry = spawn.load_ledger(PARENT)["req-res1"]
@@ -836,8 +820,7 @@ class ResumeTests(LedgerIsolatedTestCase):
                 }
             ]
         }
-        with patch.object(
-            spawn, "api", side_effect=api_recorder(convs, self.posts, events)
+        with patch.object(transport, "api", side_effect=api_recorder(convs, self.posts, events)
         ):
             receipt = self.output_of(spawn.run_resume, args, self.parent_conv())
         self.assertEqual(self.posts, [])
@@ -858,21 +841,20 @@ class ResumeTests(LedgerIsolatedTestCase):
         port = server.server_address[1]
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
-        base = spawn.BASE
+        base = transport.BASE
         try:
-            spawn.BASE = f"http://127.0.0.1:{port}"
+            transport.BASE = f"http://127.0.0.1:{port}"
 
             def slow_urlopen(req, timeout=None):
                 return REAL_URLOPEN(req, timeout=1)
 
-            with patch.object(spawn, "session_key", return_value="test-key"), patch.object(
-                spawn, "urlopen", slow_urlopen
+            with patch.object(transport, "session_key", return_value="test-key"), patch.object(transport, "urlopen", slow_urlopen
             ), self.assertRaises((SystemExit, TimeoutError)):
                 self.output_of(
                     spawn.run_resume, self.resume_args(), self.parent_conv()
                 )
         finally:
-            spawn.BASE = base
+            transport.BASE = base
             server.shutdown()
             server.server_close()
         entry = spawn.load_ledger(PARENT).get("req-res1")
@@ -927,7 +909,7 @@ class NotifyIdentityTests(LedgerIsolatedTestCase):
 
     def test_related_request_match_posts_to_parent_and_accepts(self) -> None:
         convs = {PARENT: {"id": PARENT, "status": "running"}}
-        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+        with patch.object(transport, "api", side_effect=api_recorder(convs, self.posts)):
             out = self.output_of(
                 spawn.run_notify,
                 self.notify_args(related_request_id="req-not1"),
@@ -944,9 +926,7 @@ class NotifyIdentityTests(LedgerIsolatedTestCase):
         )
         convs = {PARENT: {"id": PARENT, "status": "running"}}
         bodies: list = []
-        with patch.object(
-            spawn,
-            "api",
+        with patch.object(transport, "api",
             side_effect=body_capturing_recorder(convs, self.posts, bodies),
         ):
             self.output_of(
@@ -969,7 +949,7 @@ class NotifyIdentityTests(LedgerIsolatedTestCase):
 
     def test_related_request_mismatch_rejected_without_post(self) -> None:
         convs = {PARENT: {"id": PARENT, "status": "running"}}
-        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+        with patch.object(transport, "api", side_effect=api_recorder(convs, self.posts)):
             with self.assertRaisesRegex(SystemExit, "stale"):
                 spawn.run_notify(
                     self.notify_args(related_request_id="req-other"),
@@ -981,7 +961,7 @@ class NotifyIdentityTests(LedgerIsolatedTestCase):
 
     def test_identical_replay_reconciles_without_second_post(self) -> None:
         convs = {PARENT: {"id": PARENT, "status": "running"}}
-        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+        with patch.object(transport, "api", side_effect=api_recorder(convs, self.posts)):
             self.output_of(spawn.run_notify, self.notify_args(), self.child_window(), CHILD)
             receipt = self.output_of(
                 spawn.run_notify, self.notify_args(), self.child_window(), CHILD
@@ -993,7 +973,7 @@ class NotifyIdentityTests(LedgerIsolatedTestCase):
 
     def test_changed_text_same_request_rejected(self) -> None:
         convs = {PARENT: {"id": PARENT, "status": "running"}}
-        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+        with patch.object(transport, "api", side_effect=api_recorder(convs, self.posts)):
             self.output_of(spawn.run_notify, self.notify_args(), self.child_window(), CHILD)
             with self.assertRaisesRegex(SystemExit, "collision"):
                 spawn.run_notify(
@@ -1011,7 +991,7 @@ class NotifyIdentityTests(LedgerIsolatedTestCase):
         )
 
     def test_planning_direction_is_refused(self) -> None:
-        with patch.object(spawn, "api", side_effect=api_recorder({}, self.posts)):
+        with patch.object(transport, "api", side_effect=api_recorder({}, self.posts)):
             with self.assertRaisesRegex(SystemExit, "Planning must not notify"):
                 spawn.run_notify(
                     self.notify_args(), self.parent_conv(), PARENT
@@ -1022,7 +1002,7 @@ class NotifyIdentityTests(LedgerIsolatedTestCase):
         conv = self.child_window()
         conv["tags"]["layer"] = "employee"
         convs = {PARENT: {"id": PARENT, "status": "running"}}
-        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)):
+        with patch.object(transport, "api", side_effect=api_recorder(convs, self.posts)):
             with self.assertRaisesRegex(SystemExit, "not a department child"):
                 spawn.run_notify(self.notify_args(), conv, CHILD)
         self.assertEqual(self.posts, [])
@@ -1030,8 +1010,7 @@ class NotifyIdentityTests(LedgerIsolatedTestCase):
 
     def test_unknown_notify_reconciles_marker_without_second_post(self) -> None:
         convs = {PARENT: {"id": PARENT, "status": "running"}}
-        with patch.object(
-            spawn, "api", side_effect=TimeoutError("read timed out")
+        with patch.object(transport, "api", side_effect=TimeoutError("read timed out")
         ), self.assertRaises(TimeoutError):
             self.output_of(
                 spawn.run_notify, self.notify_args(), self.child_window(), CHILD
@@ -1047,8 +1026,7 @@ class NotifyIdentityTests(LedgerIsolatedTestCase):
                 {"role": "user", "content": [{"type": "text", "text": report}]}
             ]
         }
-        with patch.object(
-            spawn, "api", side_effect=api_recorder(convs, self.posts, events)
+        with patch.object(transport, "api", side_effect=api_recorder(convs, self.posts, events)
         ):
             receipt = self.output_of(
                 spawn.run_notify, self.notify_args(), self.child_window(), CHILD
@@ -1063,16 +1041,14 @@ class NotifyIdentityTests(LedgerIsolatedTestCase):
 
     def test_unknown_notify_without_marker_resends_exactly_once(self) -> None:
         convs = {PARENT: {"id": PARENT, "status": "running"}}
-        with patch.object(
-            spawn, "api", side_effect=TimeoutError("read timed out")
+        with patch.object(transport, "api", side_effect=TimeoutError("read timed out")
         ), self.assertRaises(TimeoutError):
             self.output_of(
                 spawn.run_notify, self.notify_args(), self.child_window(), CHILD
             )
         # Marker genuinely absent: the first attempt never landed, so the
         # reconcile returns "resend" and the single bounded re-send fires.
-        with patch.object(
-            spawn, "api", side_effect=api_recorder(convs, self.posts, {PARENT: []})
+        with patch.object(transport, "api", side_effect=api_recorder(convs, self.posts, {PARENT: []})
         ):
             receipt = self.output_of(
                 spawn.run_notify, self.notify_args(), self.child_window(), CHILD
@@ -1084,8 +1060,7 @@ class NotifyIdentityTests(LedgerIsolatedTestCase):
         # The delivered report replays reconciled instead of duplicating:
         # dedup wins even at exhausted attempts.
         before = self.posts.count(f"/api/conversations/{PARENT}/events")
-        with patch.object(
-            spawn, "api", side_effect=api_recorder(convs, self.posts, {PARENT: []})
+        with patch.object(transport, "api", side_effect=api_recorder(convs, self.posts, {PARENT: []})
         ):
             replay = self.output_of(
                 spawn.run_notify, self.notify_args(), self.child_window(), CHILD
@@ -1106,20 +1081,17 @@ class NotifyIdentityTests(LedgerIsolatedTestCase):
             request_id="req-report2",
             prompt_file=self.prompt_file("report-exhaust.txt", exhaust_report),
         )
-        with patch.object(
-            spawn, "api", side_effect=TimeoutError("read timed out")
+        with patch.object(transport, "api", side_effect=TimeoutError("read timed out")
         ), self.assertRaises(TimeoutError):
             self.output_of(
                 spawn.run_notify, exhaust_args, self.child_window(), CHILD
             )
-        with patch.object(
-            spawn, "api", side_effect=TimeoutError("read timed out")
+        with patch.object(transport, "api", side_effect=TimeoutError("read timed out")
         ), self.assertRaises(TimeoutError):
             self.output_of(
                 spawn.run_notify, exhaust_args, self.child_window(), CHILD
             )
-        with patch.object(
-            spawn, "api", side_effect=TimeoutError("read timed out")
+        with patch.object(transport, "api", side_effect=TimeoutError("read timed out")
         ), self.assertRaises(SystemExit):
             self.output_of(
                 spawn.run_notify, exhaust_args, self.child_window(), CHILD
@@ -1363,7 +1335,7 @@ class CompletionSemanticsTests(LedgerIsolatedTestCase):
 
     def test_accepted_dispatch_returns_immediately_with_receipt(self) -> None:
         recorder = api_recorder({CHILD: self.child_conv()}, self.posts)
-        with patch.object(spawn, "api", side_effect=recorder), patch.object(
+        with patch.object(transport, "api", side_effect=recorder), patch.object(
             spawn.time, "sleep"
         ) as sleeper:
             out = self.output_of(
@@ -1377,7 +1349,7 @@ class CompletionSemanticsTests(LedgerIsolatedTestCase):
     def test_accepted_resume_returns_immediately_with_receipt(self) -> None:
         self.bind_target()
         convs = {TARGET: self.child_conv(cid=TARGET, status="finished")}
-        with patch.object(spawn, "api", side_effect=api_recorder(convs, self.posts)), patch.object(
+        with patch.object(transport, "api", side_effect=api_recorder(convs, self.posts)), patch.object(
             spawn.time, "sleep"
         ) as sleeper:
             out = self.output_of(

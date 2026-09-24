@@ -24,6 +24,7 @@ def load(name: str):
 
 spawn = load("spawn")
 github_command = load("github_command")
+from canvas_sessions import transport
 
 # UUID conversation fixtures: ledger files are keyed by conversation UUID,
 # so every id that touches the request-scoped ledger must be a UUID.
@@ -329,11 +330,11 @@ class MainApiPathTests(unittest.TestCase):
         return "\n".join(lines)
 
     def run_main(self, api, args, prompt):
-        original_api = spawn.api
+        original_api = transport.api
         original_argv = sys.argv
         output = io.StringIO()
         try:
-            spawn.api = api
+            transport.api = api
             with tempfile.TemporaryDirectory() as raw:
                 prompt_path = Path(raw) / "prompt.txt"
                 prompt_path.write_text(prompt, encoding="utf-8")
@@ -341,7 +342,7 @@ class MainApiPathTests(unittest.TestCase):
                 with contextlib.redirect_stdout(output):
                     spawn.main()
         finally:
-            spawn.api = original_api
+            transport.api = original_api
             sys.argv = original_argv
         # main() prints transport receipts before the final report; the
         # report is the last JSON object on stdout.
