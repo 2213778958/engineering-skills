@@ -547,5 +547,113 @@ class MainApiPathTests(unittest.TestCase):
             )
 
 
+class SeamImportSurfaceTests(unittest.TestCase):
+    """Pin the split-module import surface (ticket #25 seam contract).
+
+    Ticket #53 may modify each seam independently; these assertions keep the
+    package layout and the spawn facade re-exports stable so callers and
+    fixtures keep working across seam-internal changes.
+    """
+
+    def test_seam_modules_import(self) -> None:
+        import canvas_sessions  # package init
+        from canvas_sessions import dispatch, identity, ledger, notify, resume, transport
+
+        self.assertTrue(hasattr(canvas_sessions, "__path__"))
+        for seam in (transport, identity, ledger, dispatch, resume, notify):
+            self.assertTrue(hasattr(seam, "__name__"), seam)
+
+    def test_transport_holds_the_only_http_entry_points(self) -> None:
+        from canvas_sessions import transport
+
+        for name in ("session_key", "api", "get_conversation", "github_binding"):
+            self.assertTrue(callable(getattr(transport, name)), name)
+        self.assertEqual(transport.EVENT_POST_TIMEOUT, 180)
+
+    def test_spawn_facade_reexports_former_public_surface(self) -> None:
+        surface = (
+            "BASE",
+            "KEY_PATH",
+            "UI",
+            "SECRET_NAME",
+            "GITHUB_CONSUMER",
+            "EVENT_POST_TIMEOUT",
+            "session_key",
+            "api",
+            "github_binding",
+            "probe_secret_source",
+            "binding_status",
+            "get_conversation",
+            "maybe_run",
+            "ensure_child",
+            "WT_SEGMENT",
+            "SIBLING_TREE",
+            "TICKET_FORM",
+            "REQUEST_FORM",
+            "TERMINAL_STATES",
+            "AUTHORIZED_DEPARTMENTS",
+            "DEPARTMENTS",
+            "working_dir_of",
+            "norm_path",
+            "refuse_path",
+            "canvas_tags",
+            "status_of",
+            "search_items",
+            "search_running",
+            "validate_profile_id",
+            "normalize_ticket",
+            "normalize_request_id",
+            "request_identity",
+            "dispatch_request_child_id",
+            "imported_from_cwd",
+            "cwd_match_paths",
+            "is_workspace_hit",
+            "updated_key",
+            "pick_workspace_id",
+            "resolve_this",
+            "prompt_digest",
+            "ledger_dir",
+            "ledger_path",
+            "load_ledger",
+            "save_ledger",
+            "record_ledger",
+            "ledger_entry",
+            "make_receipt",
+            "emit_receipt",
+            "http_op",
+            "refuse_duplicate_dispatch",
+            "reconcile_event_marker",
+            "refuse_duplicate_from_ledger",
+            "verify_request_payload",
+            "reconciled_receipt",
+            "reconcile_dispatch_entry",
+            "resume_rejection",
+            "reconcile_resume_entry",
+            "bound_department_prompt",
+            "conversation_body",
+            "run_dispatch",
+            "validate_persisted_dispatch",
+            "post_message",
+            "validate_resume",
+            "run_resume",
+            "REPORT_PREFIX",
+            "REPORT_HOPS",
+            "report_fields",
+            "validate_report",
+            "event_payload",
+            "send_event",
+            "event_text_blob",
+            "target_event_texts",
+            "event_marker",
+            "run_notify",
+            "HTTPError",
+            "URLError",
+            "main",
+        )
+        for name in surface:
+            with self.subTest(name=name):
+                self.assertTrue(hasattr(spawn, name), name)
+
+
 if __name__ == "__main__":
     unittest.main()
