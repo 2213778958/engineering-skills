@@ -17,4 +17,18 @@ The script creates a stable dispatch UUID and returns `dispatch_id`, `child_conv
 
 The script copies imported `working_dir` and tags, forces `clientsource=agentcanvas`, and uses `worktree: false`. Planning process dispatch stops after launch and does not watch. Generic legacy dispatch without department metadata remains supported for user-requested child planning windows; it is not a process department dispatch.
 
-Use a realistic `max_iterations`: 80 for a one-shot, 200 for a single-file fix, 400 for a page or a few files, and 500 for a feature slice or uncertainty. User-named caps win.
+## max_iterations floors
+
+`max_iterations` is estimated, never a fixed 100. Count likely tool-calls (read, install, each edit, build, browser, commit), **×2 at least**, then use a floor:
+
+| Child work | Floor |
+|---|---|
+| one-shot question only | 80 |
+| single-file fix | 200 |
+| a page / a few files + test | 400 |
+| feature slice: install, multi-file, verify, commit | 500 |
+| open with no task yet / unsure | 500 |
+
+Prefer the next floor up when unsure. Large slices start at **500**. User-named cap wins. Report the number with the UI link.
+
+Hitting the cap marks `error` (`MaxIterationsReached`, not retryable) and skips later steps such as `git commit`.
