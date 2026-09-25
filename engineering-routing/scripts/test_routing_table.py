@@ -26,9 +26,14 @@ ENABLED = (
     "engineering-init",
     "engineering-process",
     "engineering-research",
-    "openhands-sessions",
+    "engineering-sessions",
 )
-REGISTERED = ("engineering-routing", "openhands-watch", "skill-maker")
+REGISTERED = (
+    "engineering-routing",
+    "openhands-sessions",
+    "openhands-watch",
+    "skill-maker",
+)
 HEADER = "| skill | state | group | entry | uses |"
 SEPARATOR = "|---|---|---|---|---|"
 
@@ -67,7 +72,7 @@ class RepoRoutingTableTests(unittest.TestCase):
         self.rows = routing_table.load_table()
 
     def test_real_table_parses_all_rows(self) -> None:
-        self.assertEqual(len(self.rows), 7)
+        self.assertEqual(len(self.rows), 8)
         self.assertEqual(
             tuple(row.skill for row in self.rows),
             (
@@ -75,6 +80,7 @@ class RepoRoutingTableTests(unittest.TestCase):
                 "engineering-process",
                 "engineering-research",
                 "engineering-routing",
+                "engineering-sessions",
                 "openhands-sessions",
                 "openhands-watch",
                 "skill-maker",
@@ -99,7 +105,7 @@ class RepoRoutingTableTests(unittest.TestCase):
         self.assertEqual(by_name["engineering-init"].group, "process")
         self.assertEqual(by_name["engineering-process"].group, "process")
         self.assertEqual(by_name["engineering-research"].group, "research")
-        self.assertEqual(by_name["openhands-sessions"].group, "process")
+        self.assertEqual(by_name["engineering-sessions"].group, "process")
         for name in ENABLED:
             self.assertEqual(by_name[name].uses, "engineering-routing", name)
 

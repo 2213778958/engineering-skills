@@ -26,6 +26,7 @@ EXPECTED_SERIES = (
     "engineering-process",
     "engineering-research",
     "engineering-routing",
+    "engineering-sessions",
     "openhands-sessions",
     "openhands-watch",
 )

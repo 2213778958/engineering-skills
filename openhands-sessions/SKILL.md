@@ -32,7 +32,7 @@ Open only the selected one-level reference plus `identity.md`. Do not recursivel
 - Planning continuing the same validated direct department child selects `resume`.
 - Department-internal employee work selects `delegate`.
 If the routing skill has not selected a process action, this skill must not invent one.
-Task-type routing (who should work) is `engineering-routing`. If the user asked to pick by task type and routing did not already call this skill → read and run `engineering-routing`. If routing already called this skill, or the user named a profile/model → only the named mode.
+Task-type routing (who should work) is `engineering-routing`, which may dispatch only to rows whose state is `enabled` in `engineering-routing/references/routing-table.md`; a `registered` row is not routable. If the user asked to pick by task type and routing did not already call this skill → read and run `engineering-routing`. If routing already called this skill, or the user named a profile/model → only the named mode.
 
 This copy runs on the **ACP bridge**. A **department** (including planning) may be a **model** on this bridge (e.g. grok). Do not call that window "ACP". **Employees** = **delegate**. Do not rewrite `delegate` to `dispatch`. No Task here → **fail** delegate; do not spawn a child instead. Do not 分发 an employee.
 
@@ -46,7 +46,7 @@ This copy runs on the **ACP bridge**. A **department** (including planning) may 
    `/api/conversations` → **fail**. Callers: read and run this skill. Open,
    dispatch, and notify only via `scripts/spawn.py`. Child GET `id` missing
    or tags missing `clientsource=agentcanvas` after spawn → **fail**.
-4. Do not choose a profile by task type here. That is `engineering-routing`.
+4. Do not choose a profile by task type here. That is `engineering-routing`, which may dispatch only to rows whose state is `enabled` in `engineering-routing/references/routing-table.md`; a `registered` row is not routable.
 5. Do not change the engineering contract (that is `engineering-init`). Do
    not advance tickets (that is `engineering-process`).
 6. At most 3 concurrent dispatch children.

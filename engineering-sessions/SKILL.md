@@ -10,11 +10,12 @@ description: >-
 # Engineering sessions
 
 1. Read `sessions:` from `docs/agents/PROCESS.md`. If it is absent, read
-   `sessions:` from `docs/agents/MODELS.md`.
+   `sessions:` from `docs/agents/MODELS.md`. Absent in both → `openhands-sessions`
+   (the only adapter today).
 2. Require exactly one adapter name: `openhands-sessions` or an installed
-   future adapter such as `codex-sessions`. A missing, conflicting, or
-   unavailable adapter is a failure; do not infer one from the current model,
-   runtime, or ACP.
+   future adapter such as `codex-sessions`. The two files naming different
+   adapters, or a named adapter that is not installed, is a failure; do not
+   infer one from the current model, runtime, or ACP.
 3. Read and run the named adapter for the caller's requested mode and inputs.
    Return its result unchanged.
 

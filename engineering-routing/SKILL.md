@@ -2,14 +2,14 @@
 name: engineering-routing
 description: >-
   Routes a task to current session, a child conversation, or a subagent by
-  task type, then runs openhands-sessions. Use when the user asks to
+  task type, then runs engineering-sessions. Use when the user asks to
   按任务类型分发, 子智能体, session 还是 subagent, 派谁干, 选模型干活,
   or when another engineering skill needs to spawn work.
 ---
 
 # Engineering routing
 
-Pick link and target first, then read and run this harness's `*-sessions` (default `openhands-sessions`; use `codex-sessions` only if this session is Codex and that skill exists). Do not copy POST. Do not write `dispatch_session.py`. Do not call Task directly. Do not change the engineering contract (that is `engineering-init`).
+Pick link and target first, then read and run `engineering-sessions` (it reads the `sessions:` latch and runs that adapter; default `openhands-sessions`). Do not copy POST. Do not write `dispatch_session.py`. Do not call Task directly. Do not change the engineering contract (that is `engineering-init`).
 
 | Mode | When | Done |
 |---|---|---|
