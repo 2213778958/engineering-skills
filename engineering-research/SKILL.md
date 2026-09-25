@@ -7,8 +7,9 @@ description: >-
   chip interfaces from a datasheet, repo facts), researches them, and
   synthesizes one cross-checked answer. For datasheets it produces the chip
   findings that header files are written from; it does not write headers.
-  The repo's own library comes first; the internet is only the fallback. Raw materials (datasheet PDFs, assets) live in
-  the resources/ library beside master/ and worktree/, outside git.
+  The repo's own library comes first; the internet is only the fallback.
+  Raw materials (datasheet PDFs, assets) live in the resources/ library
+  beside master/ and worktree/, outside git.
   Use when the user asks to 调研, 技术选型, 方案, 素材, 资料, 数据手册, 寄存器,
   技术文档 PDF, regs.h, cfg.h, address.h, config.h, or to extract hardware
   interfaces from a datasheet.
@@ -56,9 +57,9 @@ A face depends on another when its search needs that face's conclusion (e.g. `as
 
 1. Check Inputs. Read `docs/research/README.md`; reuse an existing directory for the same topic, else name a new one per layout.md.
 2. Split the requirement into faces: each face's question, its dependencies, its findings path. Keep this plan in this conversation; it goes into every face prompt and into the synthesis prompt.
-3. Read and run `engineering-routing` once per face. Faces with no open dependency may run in parallel (≤3); a dependent face starts after its upstream finishes, and its prompt carries the upstream conclusion as a constraint. Prompt contains only: face question, constraints, scope, findings file path, done criteria (findings file written; downloaded raw files placed under `resources/`; their manifest rows returned in the receipt, not written to `resources.md`). Do not paste long source text or PDF body.
+3. Read and run `engineering-routing` once per face. Faces with no open dependency may run in parallel (≤3); a dependent face starts after its upstream finishes, and its prompt carries the upstream conclusion as a constraint. Prompt: the employee prompt fields of `engineering-process` rules.md 10 (ticket-tree `cd` path first, ticket URL, allowlist = the findings file only, the fixed repo-docs / no-push line), then face question, constraints, scope, done criteria (findings file written, not committed; downloaded raw files placed under `resources/`; their manifest rows returned in the receipt, not written to `resources.md`). Do not paste long source text or PDF body.
 4. Wait until each subagent ends and its receipt is in this conversation. Background Task → **fail**. No `spawn.py`.
-5. **Synthesize.** Read and run `engineering-routing` once more for a synthesis subagent. Prompt: the plan, the findings paths, the manifest rows from the face receipts. It cross-checks the findings against each other (license compatibility, format fits the chosen stack, conflicting recommendations, missing constraints), then writes the entry `README.md` (requirement, conclusion, per-face index, conflicts, not-found list), appends the manifest rows to `docs/research/resources.md`, and adds the directory's row to `docs/research/README.md`. Wait for its receipt.
+5. **Synthesize.** Read and run `engineering-routing` once more for a synthesis subagent. Prompt: the rules.md 10 fields (ticket-tree `cd` path first, ticket URL, allowlist = this research directory + `docs/research/README.md` + `docs/research/resources.md`), then the plan, the findings paths, the manifest rows from the face receipts. It cross-checks the findings against each other (license compatibility, format fits the chosen stack, conflicting recommendations, missing constraints), then writes the entry `README.md` (requirement, conclusion, per-face index, conflicts, not-found list), appends the manifest rows to `docs/research/resources.md`, and adds the directory's row to `docs/research/README.md`; it commits per Commit above and returns the commit SHA. Wait for its receipt.
 6. Check: every claim cites a named source; repo-library-first is visible; every `resources:` path has a manifest row. Web-only answer with a repo hit available → fail, then run the face again.
 7. Report: entry md path + faces + subagent names.
 

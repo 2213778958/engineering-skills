@@ -105,6 +105,11 @@ class CallerAgreementTests(unittest.TestCase):
             self.assertRegex(text, r"`docs/research/` is (?:outside every|never in an) allowlist", rel)
         hops = read(ROOT / "engineering-process" / "references" / "hops.md")
         self.assertIn("committed by its synthesis subagent", hops)
+        self.assertIn("synthesis commit SHA as a known non-implement commit", hops)
+
+    def test_subagent_prompts_carry_rules_10_fields(self) -> None:
+        text = read(SKILL)
+        self.assertEqual(text.count("ticket-tree `cd` path first"), 2)
 
     def test_headers_are_written_downstream(self) -> None:
         contract = read(ROOT / "engineering-init" / "references" / "contract.md")
