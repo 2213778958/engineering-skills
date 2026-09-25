@@ -1,4 +1,4 @@
-# 0006 — Skill registry, grouped disclosure, and skill-maker privilege
+# 0007 — Skill registry, grouped disclosure, and skill-maker privilege
 
 Date: 2026-09-23
 Status: Accepted (person decision, recorded in planning conversation 2f26c192)
