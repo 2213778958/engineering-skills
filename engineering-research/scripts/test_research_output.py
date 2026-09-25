@@ -98,6 +98,14 @@ class CallerAgreementTests(unittest.TestCase):
         self.assertIn("`docs/research/`", row)
         self.assertNotIn("headers included", row)
 
+    def test_research_commit_is_outside_implement_allowlists(self) -> None:
+        self.assertIn("the synthesis subagent `git add`s only `docs/research/`", read(SKILL))
+        for rel in ("conventions.md", "architecture.md"):
+            text = read(ROOT / "engineering-init" / "references" / rel)
+            self.assertRegex(text, r"`docs/research/` is (?:outside every|never in an) allowlist", rel)
+        hops = read(ROOT / "engineering-process" / "references" / "hops.md")
+        self.assertIn("committed by its synthesis subagent", hops)
+
     def test_headers_are_written_downstream(self) -> None:
         contract = read(ROOT / "engineering-init" / "references" / "contract.md")
         self.assertIn("delivery implement writes the headers from the research findings", contract)

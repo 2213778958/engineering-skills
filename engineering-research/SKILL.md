@@ -6,8 +6,8 @@ description: >-
   requirement into research faces (prior approaches, assets, technical options,
   chip interfaces from a datasheet, repo facts), researches them, and
   synthesizes one cross-checked answer. For datasheets it produces the chip
-  findings that header files are written from; it does not write headers. The repo's own library comes first; the
-  internet is only the fallback. Raw materials (datasheet PDFs, assets) live in
+  findings that header files are written from; it does not write headers.
+  The repo's own library comes first; the internet is only the fallback. Raw materials (datasheet PDFs, assets) live in
   the resources/ library beside master/ and worktree/, outside git.
   Use when the user asks to 调研, 技术选型, 方案, 素材, 资料, 数据手册, 寄存器,
   技术文档 PDF, regs.h, cfg.h, address.h, config.h, or to extract hardware
@@ -18,13 +18,13 @@ description: >-
 
 One **research** employee: one requirement in, one **research directory** out. The manage that staffs research runs these steps; every file under `docs/research/` is written by a delegated subagent, never by the manage window. Every call delivers the same shape — `docs/research/<YYYY-MM>-<slug>/`, entered through its `README.md`. Downstream agents enter from that md; header files, asset imports and code are their work, not research's.
 
-This is an **employee** (Task), not a department. Do not write drivers or headers, do not open issues, do not paste PDF body into this conversation. Do not open a child conversation. Any department's **manage** may staff this role; the default home is the **delivery** implement ticket.
+Research is an employee role, not a department: its workers (face and synthesis subagents) are employees (Task); the steps run in the staffing manage's window. Do not write drivers or headers, do not open issues, do not paste PDF body into this conversation. Do not open a child conversation. Any department's **manage** may staff this role; the default home is the **delivery** implement ticket.
 
 Delegate: read and run `engineering-routing` (role `research`). Before delegating, check `../engineering-routing/references/routing-table.md`: only an `enabled` row is routable; a `registered` row stops at the gate (enablement is a patch ticket). Repo `MODELS.md` target wins if present; ignore a `dispatch` link. Do not read `openhands-sessions`, do not copy POST, do not call Task directly.
 
 Directory layout, naming, resource manifest and `resources:` paths: [references/layout.md](references/layout.md).
 
-Commit: `docs/research/` is always allowed on the ticket that staffed research; that ticket's implement employee adds and commits it with its patch.
+Commit: the synthesis subagent `git add`s only `docs/research/` and commits on the ticket's branch; no push, no other path. `docs/research/` is outside every implement allowlist; implement and review only read it.
 
 ## Inputs
 
@@ -33,6 +33,8 @@ Commit: `docs/research/` is always allowed on the ticket that staffed research; 
 | requirement (what must be known, and why); scope; return format (what the entry md must answer); hints if known (chip part, PDF path, engine) | faces and their order; sources: repo library first, then `resources/`, then the web |
 
 Requirement missing → stop; `Result: fail` + `Missing: <fields>`. Do not guess, do not ask. Do not ask the user to list registers.
+
+No resources root (layout.md resolution step 4) while a face must store or read a raw file → the whole research stops; `Result: fail` + `Missing: ENGINEERING_RESOURCES`.
 
 Material not found → not an input failure: finish with what was found; list what was not found and where it looked. Exception: a chip-interface face with no datasheet PDF found anywhere cannot produce findings → `Result: fail` + where it looked.
 
@@ -62,6 +64,6 @@ A face depends on another when its search needs that face's conclusion (e.g. `as
 
 ## Chip-interface face
 
-The datasheet PDF goes to `resources:datasheets/`; find it by the caller's hint first, then the repo's `.pdf` files, then the web. A PDF found in the repo is copied into `resources:datasheets/` with a manifest row; it is not removed from git here. The reader subagent writes `findings/chip-<part>.md`: base addresses, register offsets, bitfields, timing and pin constants the requirement needs — each with PDF file name + page or section. This conversation only reads the findings md; it never opens the PDF.
+The datasheet PDF goes to `resources:datasheets/`; find it by the caller's hint first, then the repo's `.pdf` files, then the web. A PDF found in the repo is copied into `resources:datasheets/`; its manifest row goes into the face receipt; it is not removed from git here. The reader subagent writes `findings/chip-<part>.md`: base addresses, register offsets, bitfields, timing and pin constants the requirement needs — each with PDF file name + page or section. This conversation only reads the findings md; it never opens the PDF.
 
 Header files are written downstream by the delivery implement from that findings md, per [references/headers.md](references/headers.md).

@@ -42,7 +42,7 @@ Resolve the root, first hit wins:
 1. Environment variable `ENGINEERING_RESOURCES`.
 2. From the current checkout, walk up the parents; the first directory that holds both `master/` and `resources/` → its `resources/`.
 3. No `resources/` yet → the first parent directory that holds `master/`: create `resources/` there.
-4. No such parent (a plain clone) and no environment variable → a face that must store or read a raw file ends `Result: fail` + `Missing: ENGINEERING_RESOURCES`.
+4. No such parent (a plain clone) and no environment variable → a face that must store or read a raw file stops the whole research: `Result: fail` + `Missing: ENGINEERING_RESOURCES`.
 
 ## Manifest
 
