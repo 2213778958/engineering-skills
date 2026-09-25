@@ -31,7 +31,7 @@ Read this when creating or editing a skill. Write operations, not reasons.
 - Do not write: reasons, root causes, why, background, comparisons, history, bug stories.
 - Callers are **this conversation**. Keep API field names unchanged (e.g. `parent_conversation_id`).
 - User-supplied sentences go in verbatim. Do not rewrite them.
-- Missing decision → `grilling`. Missing fact → look it up. Do not paste manuals into the entry skill.
+- Missing decision → read and run `engineering-routing` for the decision. Missing fact → look it up. Do not paste manuals into the entry skill.
 - Repo already has engineering conventions → follow them. Else write defaults and mark them as defaults.
 - Process / planning behavior (planning is a **department**; **分发** / **决策** / **回传**; duties **职责表**) → read and run `engineering-process`. Do not copy that behavior into a product skill.
 - Convention-file and latch behavior (`AGENTS.md` / `CONTEXT.md` / `docs/adr/` / `PROCESS.md` / `MODELS.md`; ask `mode` once) → read and run `engineering-init`. Do not copy that behavior into a product skill.
@@ -42,7 +42,7 @@ Read this when creating or editing a skill. Write operations, not reasons.
 Authority is split in three; detail and the registration/enablement flow: read `references/privileges.md`.
 
 1. **Exclusive engineering-series modifier** — only skill-maker edits or creates engineering-series skills (`engineering-*`, `*-sessions`, `*-watch`); every such change goes through a patch/acceptance ticket. Ad-hoc edits → **fail**.
-2. **Registrar** — execute registration patch tickets per `references/privileges.md`: the routing table in `engineering-routing` is data, routing consumes it; `registered` is NOT routable; enablement is a separate patch ticket; registration never dispatches; never engine code; fail closed on malformed input.
+2. **Registrar** — execute registration patch tickets per `references/privileges.md`: the routing table `engineering-routing/references/routing-table.md` is data, routing consumes it; `registered` is NOT routable; enablement is a separate patch ticket; registration never dispatches; never engine code; validate with `scripts/registrar_check.py` first and fail closed on malformed input.
 3. **No ownership of product craft content** — anyone may author a craft skill; skill-maker does not own, rewrite, or gate craft content.
 
 ## Done

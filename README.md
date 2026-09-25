@@ -23,8 +23,8 @@
 **openhands-watch**
 看派出去的子会话是还在跑、挂了、还是结束了。规划分发本身不巡查。换 Codex 的时候，连这一层一起换。
 
-**datasheet-headers**
-从芯片数据手册里抽出寄存器头文件。不在当前会话打开 PDF，也不写驱动。
+**engineering-research**
+调研员工：把一个需求变成 `docs/research/` 下的一个调研目录，从其中的 `README.md` 进入。它把需求拆成若干调研面（先行方案、素材、技术选型、数据手册芯片接口），先查仓库自己的资料、再上网补缺，最后合成一份交叉核对过的结论。原始资料放在与 `master/`、`worktree/` 同层的 `resources/`，不进 git，清单在 `docs/research/resources.md`。不在当前会话打开 PDF，不写头文件，也不写驱动。
 
 **skill-maker**
 写 skill 或改 skill。只写步骤，不写理由。Cursor 和 OpenHands 目录各落一份相同的。
@@ -56,8 +56,8 @@ Talks to Agent Canvas: list profiles, open a conversation, dispatch a child. Rep
 **openhands-watch**
 Checks whether a dispatched child is alive, hung, or done. Planning does not watch after dispatch. Replace this file for Codex.
 
-**datasheet-headers**
-Turns a datasheet PDF into register headers. It does not open the PDF in this session and does not write drivers.
+**engineering-research**
+A research employee: turns one requirement into one research directory under `docs/research/`, entered through its `README.md`. It splits the requirement into faces (approaches, assets, options, datasheet chip interfaces), researches them repo library first and the web only for gaps, and synthesizes one cross-checked answer. Raw materials live in `resources/` beside `master/` and `worktree/`, outside git, listed in `docs/research/resources.md`. It does not open PDFs in this session and does not write headers or drivers.
 
 **skill-maker**
 Writes or edits a skill. Commands only, no rationale. Same files under the Cursor skills dir and the OpenHands skills dir.

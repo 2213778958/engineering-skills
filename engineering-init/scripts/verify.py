@@ -14,10 +14,20 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 STAGES = (
     ("watch", (sys.executable, "openhands-watch/scripts/test_watch.py")),
+    ("route", (sys.executable, "engineering-routing/scripts/test_routing_table.py")),
+    ("registry", (sys.executable, "engineering-init/scripts/test_routing_registry.py")),
+    ("callers", (sys.executable, "engineering-init/scripts/test_routing_callers.py")),
     ("verify", (sys.executable, "engineering-init/scripts/test_verify.py")),
     ("guard", (sys.executable, "engineering-init/scripts/test_no_render_mandates.py")),
     ("sessions", (sys.executable, "openhands-sessions/scripts/test_sessions.py")),
     ("spawn", (sys.executable, "openhands-sessions/scripts/test_spawn.py")),
+    ("process", (sys.executable, "engineering-process/scripts/test_source_markers.py")),
+    ("maker", (sys.executable, "skill-maker/scripts/test_registrar_check.py")),
+    (
+        "engineering-watch",
+        (sys.executable, "engineering-watch/scripts/test_watch_engineering.py"),
+    ),
+    ("research", (sys.executable, "engineering-research/scripts/test_research_output.py")),
 )
 TIMEOUT_EXIT_CODE = 124
 
@@ -131,6 +141,12 @@ def main() -> int:
                         help="default timeout for each stage (seconds)")
     parser.add_argument("--watch-timeout", type=_positive_timeout,
                         help="watch stage timeout (seconds)")
+    parser.add_argument("--route-timeout", type=_positive_timeout,
+                        help="route stage timeout (seconds)")
+    parser.add_argument("--registry-timeout", type=_positive_timeout,
+                        help="registry stage timeout (seconds)")
+    parser.add_argument("--callers-timeout", type=_positive_timeout,
+                        help="callers stage timeout (seconds)")
     parser.add_argument("--verify-timeout", type=_positive_timeout,
                         help="verify stage timeout (seconds)")
     parser.add_argument("--guard-timeout", type=_positive_timeout,
@@ -139,13 +155,28 @@ def main() -> int:
                         help="sessions stage timeout (seconds)")
     parser.add_argument("--spawn-timeout", type=_positive_timeout,
                         help="spawn stage timeout (seconds)")
+    parser.add_argument("--process-timeout", type=_positive_timeout,
+                        help="process stage timeout (seconds)")
+    parser.add_argument("--maker-timeout", type=_positive_timeout,
+                        help="maker stage timeout (seconds)")
+    parser.add_argument("--engineering-watch-timeout", type=_positive_timeout,
+                        help="engineering-watch stage timeout (seconds)")
+    parser.add_argument("--research-timeout", type=_positive_timeout,
+                        help="research stage timeout (seconds)")
     args = parser.parse_args()
     stage_timeouts = {
         "watch": args.watch_timeout,
+        "route": args.route_timeout,
+        "registry": args.registry_timeout,
+        "callers": args.callers_timeout,
         "verify": args.verify_timeout,
         "guard": args.guard_timeout,
         "sessions": args.sessions_timeout,
         "spawn": args.spawn_timeout,
+        "process": args.process_timeout,
+        "maker": args.maker_timeout,
+        "engineering-watch": args.engineering_watch_timeout,
+        "research": args.research_timeout,
     }
     return run_verification({
         name: args.timeout if timeout is None else timeout

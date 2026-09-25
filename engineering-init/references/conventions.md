@@ -35,7 +35,7 @@ Path = contains node. Repo already has a layout or the user named one → follow
 - `<module>_cfg.h`: this-board clock/pin/timing
 - Repo already uses a single `<module>_hw.h` → follow the repo
 - `#pragma once`; `#include <stdint.h>`; prefix `MODULE_REG_*` / `MODULE_CFG_*`
-- Constant comments: datasheet + page/section. No source → delete or extract again
+- Constant comments: datasheet + page/section. No source → delete or research again
 - Location: that module's contains directory. Repo already puts headers in `Inc/` → follow the repo
 
 ## Cross-layer / same-layer exposure (before drawing uses)
@@ -124,7 +124,7 @@ Arbitration runs `verify:` only to check whether reproduction holds. Failure is 
 
 ## Agent
 
-- allowlist = that contains node's path
+- allowlist = that contains node's path. `docs/research/` is outside every allowlist; only the research synthesis subagent commits it
 - On own branch only `git add` (allowlist) + `git commit`; no `checkout`/`merge`/`push`. `git push` only the delivery **manage**, and only after delivery verify passed; do not push the default branch. Heads merge / worktree git: `acceptance` implement.
 - Open a PR only on an acceptance ticket (body `engineering:pr`)
 - git worktrees: `engineering-process` creates/removes under the Canvas container `worktree/` (see canvas.md). Do not put a tree path in Canvas `working_dir`

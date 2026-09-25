@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted, 2026-09-25
+Accepted, 2026-09-25. Output part superseded by ADR 0008 (research delivers one research directory; headers are written downstream).
 
 ## Context
 

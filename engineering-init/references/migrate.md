@@ -21,7 +21,7 @@ Attach an existing project to the contract. Conventions, contains, uses, ticket 
 ## Steps
 
 1. **Fix the origin project.** Absolute path. Scan only: dirs, includes/links, `docs/agents/`, `AGENTS.md`, `CONTEXT.md`, formatters, components (`HAL_*` `MX_*` vendor trees, generated areas).
-2. **Normalize?** Unconfirmed → `grilling`. Unconfirmed → **not normalized**.
+2. **Normalize?** Unconfirmed → read and run `engineering-routing` for the decision. Unconfirmed → **not normalized**.
 3. **Landing.** Path or remote unconfirmed → grill. Landing = container `master/` (canvas.md). Landing dir missing, not wrapped, or remote still the origin → **stop**. Report origin path, planned container (`master/` + `worktree/`), clone and swap origin. Do not ask a second open style.
 4. **Before writes.** Current `gh` must hit the landing repo. Do not `gh issue create` inside the origin directory.
 5. **Conventions (into landing spec, not origin files).** Current layout/names → record "follow origin". Gaps only cite [conventions.md](conventions.md) / [firmware-layers.md](firmware-layers.md) defaults. Vendor and Components public names stay.
@@ -35,5 +35,5 @@ Attach an existing project to the contract. Conventions, contains, uses, ticket 
    - labels + to-tickets on the landing repo. Implement tickets align to **to-be** contains nodes. Grill the source title (may say "create mirror"; clone already done → close; else close-out default close the source). Parallel leaves default `blocked-by` the same source. No separate datasheet ticket. Hard-to-see gate: extra `ready-for-human`, `blocked-by` that implement. Acceptance tickets exist from the start, body `engineering:pr` + `engineering:heads` (direct children ≤4); over that, split mid acceptance. Sink only if someone must look, `ready-for-human`, `blocked-by` the final acceptance. Default 1 source 1 sink.
    - `PROCESS.md`: existing `manual`/`auto` → do not ask. Else ask once semi-auto or full-auto; write `mode:`. Write `contract: ready`. Grill light `verify:`, full+hooks `accept:`; unconfirmed → `none`.
    - Repo conventions: inject per [repo-docs.md](repo-docs.md). Do not overwrite existing files.
-   - `MODELS.md`: fill per [models-stub.md](models-stub.md). Read routing table + this harness's sessions **list**. Print the table; ask if the user wants changes.
+   - `MODELS.md`: fill per [models-stub.md](models-stub.md). Route through the registry: `engineering-routing/references/routing-table.md` (a `registered` row is not routable), then run `engineering-sessions` **list**. Print the table; ask if the user wants changes.
 9. **Report.** Origin unchanged; landing spec URL; normalized or not; as-is / to-be locations; if tickets, source/sink counts; if normalized, `mode`, `contract`, model table, which convention files were injected; Canvas paths per canvas.md. Not wrapped → stop; do not say to advance.

@@ -2,18 +2,18 @@
 name: engineering-routing
 description: >-
   Routes a task to current session, a child conversation, or a subagent by
-  task type, then runs openhands-sessions. Use when the user asks to
+  task type, then runs engineering-sessions. Use when the user asks to
   按任务类型分发, 子智能体, session 还是 subagent, 派谁干, 选模型干活,
   or when another engineering skill needs to spawn work.
 ---
 
 # Engineering routing
 
-Pick link and target first, then read and run this harness's `*-sessions` (default `openhands-sessions`; use `codex-sessions` only if this session is Codex and that skill exists). Do not copy POST. Do not write `dispatch_session.py`. Do not call Task directly. Do not change the engineering contract (that is `engineering-init`).
+Pick link and target first, then read and run `engineering-sessions` (it reads the `sessions:` latch and runs that adapter; default `openhands-sessions`). Do not copy POST. Do not write `dispatch_session.py`. Do not call Task directly. Do not change the engineering contract (that is `engineering-init`).
 
 | Mode | When | Done |
 |---|---|---|
-| **research** | Need a technical question answered or a research document — repo facts, technical options, or datasheet extraction (registers / interfaces from a PDF) — keeping sources and PDF body out of this session | `engineering-research` delegated and its receipt in this conversation |
+| **research** | Need a requirement researched — prior approaches, assets, technical options, repo facts, or chip interfaces from a datasheet PDF — keeping sources and PDF body out of this session | `engineering-research` delegated; its research directory entry md and receipt in this conversation |
 | **route** | Dispatch work / pick who by type | stay / dispatch / delegate chosen and sessions run; delegate receipt in this conversation |
 
 Planning is a **department** (user entry). The department window is **manage**. Other departments this process 分发: delivery / acceptance / arbitration / human. Planning and human **manage** talk to the user. Human: how to test and accept, and help. **Employee** = implement / review / verify / research (Task). Duties: `engineering-process` templates.md **职责表**. Do not skip department → employee.
@@ -31,7 +31,7 @@ User named a profile or model → follow the user for the **target**, then resol
 
 | Task type | Link | Target |
 |---|---|---|
-| Extract registers from a PDF / datasheet, or answer a technical question; keep the sources and body out of this session (`engineering-research`) | delegate | subagent `general-purpose` |
+| Research a requirement (approaches / assets / options / datasheet registers) into a research directory; keep the sources and body out of this session (`engineering-research`) | delegate | subagent `general-purpose` |
 | Mechanical edits: rename / format / small patch | delegate | subagent `general-purpose` |
 | Read-only search / locate files and symbols | delegate | subagent `code-explorer` (`inherit`) |
 | Search / fetch web sources | delegate | subagent `web-researcher` |

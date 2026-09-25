@@ -165,7 +165,7 @@ Use these bullets as-is; keep `<module>`:
 - `<module>_cfg.h`: this-board clock/pin/timing
 - Repo already uses a single `<module>_hw.h` → follow the repo
 - `#pragma once`; `#include <stdint.h>`; prefix `MODULE_REG_*` / `MODULE_CFG_*`
-- Constant comments: datasheet + page/section. No source → delete or extract again
+- Constant comments: datasheet + page/section. No source → delete or research again
 - Location: that module's contains directory
 
 Repo already puts headers in `Inc/` → last bullet becomes "headers live in `Inc/`".
@@ -213,7 +213,7 @@ Write: product name, confirmed layer names, **domain words** on the module list 
 
 Do not write: `src` `utils` `test` `app` as ordinary modules (except as a layer name), ticket numbers, file names, general programming words (timeout, buffer, error).
 
-One word, two meanings, unconfirmed → `grilling`; do not guess. Synonyms: pick one; the rest go under `_Avoid_`.
+One word, two meanings, unconfirmed → read and run `engineering-routing` for the decision; do not guess. Synonyms: pick one; the rest go under `_Avoid_`.
 
 ### File already exists
 

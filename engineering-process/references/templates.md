@@ -28,7 +28,7 @@
 - Before staffing, take the target from the `MODELS.md` employee cell (department × duty), then `engineering-routing`. Ignore a `dispatch` link on employee cells. Do not pick a subagent outside the catalog unless the user named one. Do not rewrite delegate to a child conversation. Wait until each employee receipt is in the department window. Background Task → **fail**. Launching Task is not hop finished.
 - 决策 technical work only by `planning` **implement**. From arbitration, apply the verdict; do not change it. Planning **manage** staffs that implement + review; does not run patch. Open/merge PR only by `acceptance` **manage**, and only if the ticket body has `engineering:pr`. Product-code edits only by the `delivery` implement **employee**. Heads merge / worktree git only by `acceptance` implement.
 - Arbitration: implement employee reproduces + opinion; review reviews the opinion; verify checks reproduction if a command exists. The verdict is written by the arbitration **department**. planning does not judge.
-- Enter arbitration only on the paths in `SKILL.md` Key points and **Review disposition** below. Delivery department reports those paths; planning **分发** arbitration. Delivery verify is not a trigger and has no `Challenge` field.
+- Enter arbitration only on the paths in `rules.md` Key points and **Review disposition** below. Delivery department reports those paths; planning **分发** arbitration. Delivery verify is not a trigger and has no `Challenge` field.
 - `git push` only the delivery **manage**, and only after delivery verify passed.
 - Unblock = close upstream tickets. Do not unblock with `remove-blocked-by`.
 - worktrees: `planning` implement creates them before 分发; `acceptance` implement removes after merge. Both semi-auto and full-auto. Under the Canvas container `worktree/`. See [worktree.md](worktree.md). Do not POST `worktree: true`. Do not POST a tree path as `working_dir`.
@@ -174,7 +174,7 @@ Same ticket and the target department already has a dispatch child → that is a
 ## Nodes on the graph
 
 - Source: `engineering:source`. Default close at plan close-out.
-- Implement: close this after delivery passed. Extract headers on this ticket if needed.
+- Implement: close this after delivery passed. Research and write headers on this ticket if needed.
 - Gate: `blocked-by` implement. Person pass → close. Do not put a human on every acceptance.
 - Acceptance: `engineering:pr`, heads direct children ≤4. Mid layer heads write `merge/<child-acceptance>` or `feat/…`. Blocked → no PR.
 - Sink: open only if someone must see the merge phenomenon; `blocked-by` the final acceptance.

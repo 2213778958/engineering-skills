@@ -1,6 +1,6 @@
 # Worktree
 
-The **planning implement** employee attaches ticket branches as **git worktrees** under the Canvas container `worktree/` before 分发. Planning **manage** must not run `git worktree`. The other department `cd`s that tree. Implement / review / verify see the path in the Task prompt. Details live only here. Chain/stop points follow `SKILL.md` "When to stop"; do not write a second copy here. Canvas hang shape: `engineering-init` canvas.md. Duties: templates.md **职责表**.
+The **planning implement** employee attaches ticket branches as **git worktrees** under the Canvas container `worktree/` before 分发. Planning **manage** must not run `git worktree`. The other department `cd`s that tree. Implement / review / verify see the path in the Task prompt. Details live only here. Chain/stop points follow `supervise.md` "When to stop"; do not write a second copy here. Canvas hang shape: `engineering-init` canvas.md. Duties: templates.md **职责表**.
 
 ## Rules
 
@@ -12,6 +12,8 @@ The **planning implement** employee attaches ticket branches as **git worktrees*
 6. Leave-one-out isolation uses one-shot isolation trees; delete immediately after the test; do not keep them until close.
 7. Employee prompt uses that tree's absolute path; first line `cd`. Ticket `git` for this hop also runs in that tree. `planning` implement creates the tree; `delivery` manage pushes from it; `acceptance` implement merges heads and removes trees.
 8. `PROCESS.md`: main checkout keeps `mode` / `contract` / `verify` / `accept` / `merge`. The ticket tree keeps the same latch plus this ticket's `template` / `issue`. When creating a tree, **copy latch fields** from main checkout; do not re-ask `mode`. Do not `git add` `PROCESS.md` / `HANDOFF.md`. `MODELS.md` follows the default branch; do not invent a copy on the tree.
+9. **Drift audit before activating an existing tree.** Before 分发 to a department on an EXISTING tree, `planning` implement runs the drift audit at dispatch-prep and includes it in the receipt: `git rev-list --count` both directions (branch vs `origin/<default>`) + `git cherry` to count true-unique commits. behind <= 5 → cheap fast-forward refresh (preserve the disk-only `PROCESS.md`). behind > 5 AND true-unique commits exist → do NOT bulk-merge: recreate the tree from `origin/<default>` and cherry-pick the carried commits one by one, resolving each as its own reviewable commit; carried arbitration receipts attach to the cherry-picked SHAs. behind > 5 AND no true-unique content → recreate the tree fresh; nothing to preserve. This policy does NOT override a standing arbitration preservation verdict by itself: where a verdict mandates preserving specific carried work, cherry-pick satisfies preservation; outright discard only applies when there is nothing unique to preserve.
+
 
 ## Key points
 
