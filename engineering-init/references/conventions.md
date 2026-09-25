@@ -124,7 +124,7 @@ Arbitration runs `verify:` only to check whether reproduction holds. Failure is 
 
 ## Agent
 
-- allowlist = that contains node's path. `docs/research/` is outside every allowlist; only the research synthesis subagent commits it
+- allowlist = that contains node's path
 - On own branch only `git add` (allowlist) + `git commit`; no `checkout`/`merge`/`push`. `git push` only the delivery **manage**, and only after delivery verify passed; do not push the default branch. Heads merge / worktree git: `acceptance` implement.
 - Open a PR only on an acceptance ticket (body `engineering:pr`)
 - git worktrees: `engineering-process` creates/removes under the Canvas container `worktree/` (see canvas.md). Do not put a tree path in Canvas `working_dir`

@@ -60,7 +60,7 @@ Working uses has a cycle → do not open tickets. Change the module list or cont
 
 ## Tickets
 
-- One implement ticket = one node on **working** contains (and its private headers). allowlist = that node's path (inside the landing repo; after normalize, relative to the mirror). `docs/research/` is never in an allowlist; the research synthesis subagent commits it
+- One implement ticket = one node on **working** contains (and its private headers). allowlist = that node's path (inside the landing repo; after normalize, relative to the mirror)
 - Two implement tickets in parallel → no working-uses edge, and contains paths do not overlap
 - Datasheet headers land on that module node; research the chip interface and write the headers inside that implement ticket's delivery; do not open a separate extract ticket
 - As-is graphs do not open tickets

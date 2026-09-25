@@ -33,7 +33,7 @@ Landing repo `docs/agents/MODELS.md`. Do not write the origin repo. Do not put t
 | arbitration implement | employee | Architecture / hard problem / deep debug |
 | arbitration review | employee | Medium-complexity implementation |
 | arbitration verify | employee | General subtask that must run commands |
-| research | employee | Research a requirement into one research directory (`docs/research/`), datasheet chip interfaces included; keep sources and PDF body out of this session |
+| research | employee | Research a requirement into one research directory (external `research/` library), datasheet chip interfaces included; keep sources and PDF body out of this session |
 
 ## Steps: fill at plan close-out
 

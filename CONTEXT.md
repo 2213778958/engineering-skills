@@ -26,4 +26,4 @@ _Avoid_: 把整套工程 skill 写成某一个工具专用
 sessions 加 watch。换 Codex 只换这一对。
 
 **engineering-research** (调研入口):
-员工角色 `research` 的技能。每次交付一个调研目录 `docs/research/<YYYY-MM>-<slug>/`，从其 `README.md` 进入。先查本仓库资料库（`docs/research/`、`docs/`、`docs/adr/`、模块代码），再查 `resources/` 资源库，没有的再查互联网；数据手册是其中一种调研面，头文件由下游 delivery implement 按调研结论写。
+员工角色 `research` 的技能。每次交付一个调研目录 `research:<YYYY-MM>-<slug>/`，从其 `<slug>.md` 进入；调研库 `research/` 与原始资料库 `resources/` 都在 `master/` 同层、代码仓库之外（`research/` 可以是 GitHub Wiki 仓库）。先查本仓库资料库（`docs/`、`docs/adr/`、模块代码），再查 `research/` 与 `resources/`，没有的再查互联网；数据手册是其中一种调研面，头文件由下游 delivery implement 按调研结论写。

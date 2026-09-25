@@ -13,6 +13,7 @@ arbitration never staff it.
 from __future__ import annotations
 
 import re
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -32,12 +33,11 @@ def dispatch_rows(text: str) -> list[str]:
 
 
 def repo_docs() -> list[Path]:
-    return [
-        path
-        for path in sorted(ROOT.rglob("*.md"))
-        if "docs" not in path.relative_to(ROOT).parts[:1]
-        and ".git" not in path.parts
-    ]
+    """Tracked Markdown outside ``docs/`` (ADRs keep history)."""
+    out = subprocess.run(
+        ["git", "ls-files", "*.md"], cwd=ROOT, capture_output=True, text=True, check=True
+    ).stdout
+    return [ROOT / rel for rel in out.splitlines() if not rel.startswith("docs/")]
 
 
 class DispatchTableTests(unittest.TestCase):
@@ -51,6 +51,9 @@ class DispatchTableTests(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertIn("| stay |", rows[0])
         self.assertIn("`grilling`", rows[0])
+        self.assertIn("planning / human manage", rows[0])
+        self.assertIn("`Missing: decision`", rows[0])
+        self.assertIn("Unconfirmed decision = `stay`; never delegate or dispatch it", read(SKILL))
 
     def test_grilling_only_in_dispatch_table(self) -> None:
         text = read(SKILL)
@@ -61,12 +64,15 @@ class DispatchTableTests(unittest.TestCase):
         self.assertIn("The dispatch table (task type → link) is not the routing table", read(SKILL))
         stub = read(ROOT / "engineering-init" / "references" / "models-stub.md")
         self.assertIn("`engineering-routing` dispatch table", stub)
+        stale = re.compile(r"(?:the|use the) table below|`engineering-routing`(?:'s)? table")
         for doc in repo_docs():
-            self.assertNotRegex(read(doc), r"(?:the|use the) table below", doc.relative_to(ROOT))
+            self.assertIsNone(stale.search(read(doc)), doc.relative_to(ROOT))
 
 
 class ResearchStaffingTests(unittest.TestCase):
-    STAFFING = re.compile(r"any department's \*{0,2}manage\*{0,2} may staff|staffable by any department")
+    STAFFING = re.compile(
+        r"any (?:department|manage)[^.\n]{0,40}staff|staff[^.\n]{0,40}any department"
+    )
 
     def test_no_any_department_staffing(self) -> None:
         for doc in repo_docs():
@@ -77,7 +83,7 @@ class ResearchStaffingTests(unittest.TestCase):
         for dept in ("**delivery**", "**acceptance**", "**planning**"):
             self.assertIn(dept, text)
         self.assertIn("**human** and **arbitration** do not staff research", text)
-        self.assertIn("Planning-staffed research", text)
+        self.assertIn("(planning-staffed: `master/`)", text)
 
     def test_process_rules_agree(self) -> None:
         rules = read(PROCESS / "references" / "rules.md")
@@ -86,6 +92,7 @@ class ResearchStaffingTests(unittest.TestCase):
         self.assertEqual(rules.count("delivery, acceptance or planning manage"), 2)
         templates = read(PROCESS / "references" / "templates.md")
         self.assertIn("human and arbitration do not", templates)
+        self.assertIn("staff this department's employees and `research` (planning input)", templates)
         hops = read(PROCESS / "references" / "hops.md")
         self.assertIn("no research staffing", hops)
 

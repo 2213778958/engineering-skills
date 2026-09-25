@@ -11,7 +11,7 @@ Planning is a **department**, not a layer above departments. Other departments t
 | **department (manage)** | planning | user entry: `parent_conversation_id` empty | talk to the user; **分发** one ticket to **another** department, then stop; or **决策**: staff `planning` implement + review, wait receipts, then stop | run delivery/acceptance/arbitration/human hops; run the phenomenon test; run patch; watch the other department; 分发 to itself; staff other departments' employees |
 | **department (manage)** | delivery / acceptance / arbitration | `spawn.py --mode dispatch` child | one tree `issue:`; staff **employees** per 职责表; wait for each receipt; finish that hop; sessions **notify**; stop | 分发 another department; reset to planning; treat user 推进 as entry; finish after launching Task; do implement/review/verify work |
 | **department (manage)** | human | `spawn.py --mode dispatch` child | one tree `issue:` (or main checkout if no tree); talk to the user: how to test and accept, and help; wait for pass/fail; sessions **notify** | staff implement/review/verify; 分发; treat user 推进 as entry |
-| **employee** | implement / review / verify / research | Task subagent only | the receipt | a conversation window; `spawn.py`; `git push`; `gh pr` |
+| **employee** | implement / review / verify / research | Task subagent only | the receipt | a conversation window; `spawn.py`; `git push` (except research synthesis → external `research/` repo); `gh pr` |
 
 **分发** = already-created ticket (init to-tickets) → write hop + `issue:` on the **ticket tree** → `planning` implement creates the tree if needed → `spawn.py --mode dispatch` that **other** department → report URL → **stop**. Do not watch.
 

@@ -42,7 +42,7 @@ The dispatch table (task type → link) is not the routing table: the routing ta
 | Long-running implementation that writes files | delegate | subagent `general-purpose` |
 | Medium-complexity implementation | delegate | subagent `general-purpose` |
 | Several parallel employees | delegate | subagent `general-purpose` ×N (concurrency ≤ 3) |
-| Unconfirmed decision (a caller read and ran routing for the decision) | stay | this conversation's model; run `grilling` until the user confirms |
+| Unconfirmed decision (a caller read and ran routing for the decision) | stay | this conversation's model; planning / human manage: run `grilling` until the user confirms; any other caller: stop, report `Missing: decision` upward |
 | Planning manage 决策 (staff only; no patch in this window) | stay | this conversation's model |
 | Planning implement (patch; no product code) | delegate | subagent `general-purpose` |
 | Planning department 分发 another department | dispatch | MODELS other-department row, else this conversation's spawnable profile |
@@ -59,6 +59,7 @@ The dispatch table (task type → link) is not the routing table: the routing ta
 - 分发 another department = `dispatch` via sessions `scripts/spawn.py` (planning department 分发, or user 开会话). Hand-written `POST /api/conversations`, `curl`, or a local `dispatch_session.py` → **fail**.
 - Do not POST `code-explorer` / `web-researcher` / `general-purpose` as `agent_profile`.
 - `inherit` = this conversation's model
+- Unconfirmed decision = `stay`; never delegate or dispatch it. Only a manage that may talk to the user (planning, human) asks.
 
 ## route
 
