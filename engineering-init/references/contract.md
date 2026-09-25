@@ -55,7 +55,7 @@ gh label create wontfix --color ffffff --force
 
 | Ticket | state | Body |
 |---|---|---|
-| source | default: close at plan close-out. User wants "confirm start" → `ready-for-human` | `engineering:source` |
+| source | default: close at plan close-out. User wants to confirm the start themselves (e.g. "confirm start") → `ready-for-human` | `engineering:source` |
 | implement | `ready-for-agent` | no `engineering:pr` |
 | hard-to-see gate | `ready-for-human` | `blocked-by` that implement ticket |
 | acceptance / PR (including mid) | `ready-for-agent` | `engineering:pr` + `engineering:heads` (≤4) |

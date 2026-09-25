@@ -29,7 +29,10 @@ TERMS = {
 }
 UI_LABELS = {"无工作区"}
 EXAMPLES = re.compile(r"\(e\.g\. [^)]*\)")
-LITERAL_PHRASE = re.compile(r'User (?:said|typed|commands|asked) "')
+QUOTE = re.compile(r'"[^"]*"')
+LITERAL_PHRASE = re.compile(
+    r'(?i)\buser (?:says?|said|types?|typed|commands?|asks?|asked|writes?|wrote)\s+["`]'
+)
 
 
 def tracked(pattern: str) -> list[str]:
@@ -59,7 +62,7 @@ def terms_rows(rel: str) -> dict[str, str]:
 def stray(line: str, markdown: bool) -> bool:
     line = re.sub(r"`[^`]*`", "", line)
     if markdown:
-        line = EXAMPLES.sub("", line)
+        line = EXAMPLES.sub(lambda m: QUOTE.sub("", m.group(0)), line)
         line = re.sub(r'"([^"]*)"', lambda m: "" if m.group(1) in UI_LABELS else m.group(0), line)
     else:
         line = re.sub(r'"[^"]*"', "", line)
@@ -102,10 +105,10 @@ class EnglishBodyTests(unittest.TestCase):
         self.assertEqual(bad, [])
         supervise = (ROOT / "engineering-process" / "references" / "supervise.md").read_text(encoding="utf-8")
         self.assertIn("**Advance request** = the user asks to move the project forward", supervise)
-        self.assertIn("Judge by intent, not wording; unclear → ask.", supervise)
+        self.assertIn("Judge by intent, not wording; unclear → planning / human manage ask the user", supervise)
         routing = (ROOT / "engineering-routing" / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("The user asks for a separate conversation window (e.g.", routing)
-        self.assertIn("Judge these by intent, not wording. Unclear → ask the user.", routing)
+        self.assertIn("Judge these by intent, not wording. Unclear → the unconfirmed-decision row", routing)
 
     def test_entry_skills_share_the_terms_table(self) -> None:
         for skill in ENTRY_SKILLS:
