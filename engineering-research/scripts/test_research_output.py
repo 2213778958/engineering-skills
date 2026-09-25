@@ -19,7 +19,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SKILL = ROOT / "engineering-research" / "SKILL.md"
 LAYOUT = ROOT / "engineering-research" / "references" / "layout.md"
-HEADERS = ROOT / "engineering-research" / "references" / "headers.md"
 ADR = ROOT / "docs" / "adr" / "0008-research-output-directory.md"
 MANIFEST_HEADER = "| path | source URL | fetched | license | size | sha256 |"
 
@@ -33,7 +32,11 @@ def tracked_docs() -> list[Path]:
     out = subprocess.run(
         ["git", "ls-files", "*.md"], cwd=ROOT, capture_output=True, text=True, check=True
     ).stdout
-    return [ROOT / rel for rel in out.splitlines() if not rel.startswith("docs/adr/")]
+    return [
+        ROOT / rel
+        for rel in out.splitlines()
+        if not rel.startswith("docs/adr/") and (ROOT / rel).is_file()
+    ]
 
 
 class ResearchContractTests(unittest.TestCase):
@@ -46,9 +49,10 @@ class ResearchContractTests(unittest.TestCase):
 
     def test_skill_links_its_references(self) -> None:
         text = read(SKILL)
-        for ref in ("references/layout.md", "references/headers.md"):
-            self.assertIn(f"]({ref})", text)
-            self.assertTrue((SKILL.parent / ref).is_file(), ref)
+        self.assertIn("](references/layout.md)", text)
+        self.assertTrue((SKILL.parent / "references" / "layout.md").is_file())
+        self.assertFalse((SKILL.parent / "references" / "headers.md").exists())
+        self.assertNotIn("headers.md", text)
 
     def test_skill_splits_faces_and_synthesizes(self) -> None:
         text = read(SKILL)
@@ -61,7 +65,7 @@ class ResearchContractTests(unittest.TestCase):
             types, ["approach", "options", "library", "assets", "api", "standard", "chip", "facts"]
         )
         self.assertIn("a face whose type needs a primary document (Faces table)", text)
-        self.assertIn("`chip` findings are the input of [references/headers.md](references/headers.md)", text)
+        self.assertIn("`chip` findings → the delivery implement writes headers per the repo's header conventions", text)
         self.assertIn("**Synthesize.**", text)
         self.assertIn("(≤3)", text)
 
@@ -76,8 +80,8 @@ class ResearchContractTests(unittest.TestCase):
         text = read(SKILL)
         self.assertNotRegex(text, r"Headers written|writes? (?:the )?header files into")
         self.assertIn("Do not write drivers or headers", text)
-        self.assertIn("Research does not write headers", read(HEADERS))
-        self.assertIn("**delivery implement**", read(HEADERS))
+        conventions = read(ROOT / "engineering-init" / "references" / "conventions.md")
+        self.assertIn("do not invent registers or typical values", conventions)
 
     def test_sync_pushes_only_the_research_repo(self) -> None:
         text = read(SKILL)

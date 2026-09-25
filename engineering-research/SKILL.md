@@ -64,7 +64,7 @@ A face is one question the requirement depends on; one findings file per face (`
 | `chip` | registers / interfaces of a part | datasheet, reference manual, app notes | addresses, offsets, bitfields, timing, pins, each with file + page | the datasheet |
 | `facts` | what this repo already does | this repo | facts, each with `file:line` | no |
 
-Raw documents go to `resources/` (`datasheets/`, `refs/`, `assets/`). A findings file that feeds a downstream format says so; `chip` findings are the input of [references/headers.md](references/headers.md).
+Raw documents go to `resources/` (`datasheets/`, `refs/`, `assets/`). A findings file that feeds a downstream format says so (e.g. `chip` findings → the delivery implement writes headers per the repo's header conventions).
 
 A face depends on another when its search needs that face's conclusion (e.g. `assets` needs the engine and art style from `approach`). Write the dependencies before delegating.
 

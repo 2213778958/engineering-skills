@@ -37,7 +37,11 @@ def repo_docs() -> list[Path]:
     out = subprocess.run(
         ["git", "ls-files", "*.md"], cwd=ROOT, capture_output=True, text=True, check=True
     ).stdout
-    return [ROOT / rel for rel in out.splitlines() if not rel.startswith("docs/")]
+    return [
+        ROOT / rel
+        for rel in out.splitlines()
+        if not rel.startswith("docs/") and (ROOT / rel).is_file()
+    ]
 
 
 class DispatchTableTests(unittest.TestCase):

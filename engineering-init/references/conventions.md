@@ -36,6 +36,7 @@ Path = contains node. Repo already has a layout or the user named one → follow
 - Repo already uses a single `<module>_hw.h` → follow the repo
 - `#pragma once`; `#include <stdint.h>`; prefix `MODULE_REG_*` / `MODULE_CFG_*`
 - Constant comments: datasheet + page/section. No source → delete or research again
+- Only symbols this module ticket needs; do not invent registers or typical values
 - Location: that module's contains directory. Repo already puts headers in `Inc/` → follow the repo
 
 ## Cross-layer / same-layer exposure (before drawing uses)
