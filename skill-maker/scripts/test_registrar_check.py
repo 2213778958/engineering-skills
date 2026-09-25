@@ -2,7 +2,7 @@
 """Tests for the skill-maker registrar checklist.
 
 Real-repo tests pin the privilege anchors in ``skill-maker/SKILL.md``, the
-ADR 0006 Decision 3 coverage in ``references/privileges.md``, and the
+ADR 0007 Decision 3 coverage in ``references/privileges.md``, and the
 ``registered`` state of the real ``skill-maker`` routing-table row. The
 ``validate_registration`` directions run off-repo in fabricated trees so a
 failing assertion can only come from the validator, never from repo state.
@@ -76,18 +76,25 @@ class RegistrarAnchorsTest(unittest.TestCase):
         for anchor in PRIVILEGE_ANCHORS:
             self.assertIn(anchor, text)
 
-    def test_skill_md_carries_registrar_procedure_anchors(self) -> None:
-        """SKILL.md lists the registration procedure step-for-step."""
-        text = SKILL_MD.read_text(encoding="utf-8")
+    def test_privileges_carry_registrar_procedure_anchors(self) -> None:
+        """privileges.md lists the registration procedure step-for-step."""
+        text = PRIVILEGES_MD.read_text(encoding="utf-8")
         position = -1
         for anchor in REGISTRAR_PROCEDURE_ANCHORS:
             position = text.find(anchor, position + 1)
             self.assertGreaterEqual(position, 0, f"missing or out of order: {anchor}")
 
+    def test_skill_md_points_to_procedure_without_copying_it(self) -> None:
+        """SKILL.md points at privileges.md and does not restate the steps."""
+        text = SKILL_MD.read_text(encoding="utf-8")
+        self.assertIn("references/privileges.md", text)
+        for anchor in REGISTRAR_PROCEDURE_ANCHORS:
+            self.assertNotIn(anchor, text)
+
     def test_privileges_reference_covers_adr_decision_3(self) -> None:
-        """references/privileges.md exists and cites ADR 0006 Decision 3."""
+        """references/privileges.md exists and cites ADR 0007 Decision 3."""
         text = PRIVILEGES_MD.read_text(encoding="utf-8")
-        self.assertIn("ADR 0006", text)
+        self.assertIn("ADR 0007", text)
         self.assertIn("Decision 3", text)
         for anchor in PRIVILEGES_SECTION_ANCHORS:
             self.assertIn(anchor, text)
