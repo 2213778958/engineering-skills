@@ -129,6 +129,7 @@ Hard stop. `until` must not skip a row.
 | `merge: human` PR opened | `wait-merge` |
 | change-contract, person must confirm | planning decide; wait for the person |
 | isolation unclear | this acceptance; give the table to the person |
+| acceptance `post` failed after a squash / rebase merge | planning; give the `git cherry` evidence to the person |
 | no pullable ticket | planning |
 
 `mode` × `until`. Follow this table. A hard-stop row wins when both match.

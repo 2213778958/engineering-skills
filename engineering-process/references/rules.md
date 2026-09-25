@@ -36,9 +36,9 @@ Duties: templates.md **duty table**.
 | Close implement ticket | `delivery` **manage** after push | planning, implement/review/verify, gate/acceptance tickets |
 | Close gate / sink | `human` **manage**: person said the phenomenon passed | do not reopen it as implement work |
 | Talk to the user | planning **manage** (session-start confirm: PROCESS modes + MODELS; advance / mode / `until` / `merge`); human **manage** (how to test and accept, and help) | delivery, acceptance, arbitration; employees |
-| Close acceptance | `acceptance` **manage**, after the PR merged and acceptance implement's `check_acceptance.py post` exited 0 | delivery, human, planning |
+| Close acceptance | `acceptance` **manage**, after the PR merged and acceptance implement's `check_acceptance.py post` exited 0; squash / rebase merge: `planning` implement after the person confirmed the `git cherry` evidence | delivery, human, planning |
 | `git commit` (product) | `delivery` implement only | review, verify, manage, planning implement, arbitration implement |
-| `git push` | `delivery` **manage** only, and only after delivery verify passed (code repo); research synthesis subagent for the external `research/` repo only | other employees; planning; do not push the code repo's default branch |
+| `git push` | `delivery` **manage** only, and only after delivery verify passed (code repo); `acceptance` **manage** pushes `merge/<this-acceptance>` only (heads ≥2, before opening the PR); research synthesis subagent for the external `research/` repo only | other employees; planning; do not push the code repo's default branch |
 | Pause downstream / register bugfix tickets / resume and notify pull | `planning` **implement** during decide. Pause hangs on the **last acceptance** of the bugfix chain | planning manage; the delivery department that found the bug |
 | Reproduce + arbitration opinion | `arbitration` implement; review reviews the opinion; `verify:` present → arbitration verify | debug, edit product code, open/merge PR |
 | Create git worktree | `planning` implement before handoff, per worktree.md | manage; other departments; do not POST `worktree: true` |
