@@ -24,3 +24,6 @@ _Avoid_: 把整套工程 skill 写成某一个工具专用
 
 **harness adapter**:
 sessions 加 watch。换 Codex 只换这一对。
+
+**engineering-research** (调研入口):
+员工角色 `research` 的技能。先查本仓库资料库（`docs/`、`docs/adr/`、模块代码），没有的再查互联网；数据手册抽取也走同一入口和同一顺序。

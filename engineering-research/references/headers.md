@@ -1,6 +1,6 @@
-# Headers
+# Datasheet headers
 
-Resolve output path; stop at the first hit:
+Extract mode only. Resolve output path; stop at the first hit:
 
 1. Path the user named this turn
 2. Repo `docs/agents/`, `AGENTS.md`, `CONTEXT.md`, existing module header naming
@@ -10,6 +10,8 @@ Resolve output path; stop at the first hit:
 |---|---|---|
 | `<module>_regs.h` | base, offsets, bitfields | init sequences, drivers |
 | `<module>_cfg.h` | this-board clock/pin/timing constants, small enums | runtime code, HAL |
+| `<module>_address.h` | only when several modules share one address map | values already in `<module>_regs.h` |
+| `<module>_config.h` | build-time switches the module ticket names | values that belong in `cfg` |
 
 Directory: user path → repo conventions → contains node for that module (C: same directory as `.c`). Do not default to `include/` / `Inc/`. Repo already uses `Inc/` → follow the repo.
 
