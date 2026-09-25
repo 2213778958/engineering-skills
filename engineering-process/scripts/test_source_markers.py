@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Guard: every engineering-series skill carries its source-marker name.
 
-ADR 0006 Decision 3 makes the SKILL.md frontmatter ``name:`` field the
+ADR 0007 Decision 3 makes the SKILL.md frontmatter ``name:`` field the
 source marker of an engineering-series skill (directories ``engineering-*``,
 ``*-sessions``, ``*-watch``): the marker must exist and match the directory
 name, because the routing-table registry keys rows by it. A series skill
@@ -24,6 +24,7 @@ NAME_LINE = re.compile(r"^name:\s*(?P<name>.+?)\s*$", re.MULTILINE)
 EXPECTED_SERIES = (
     "engineering-init",
     "engineering-process",
+    "engineering-research",
     "engineering-routing",
     "openhands-sessions",
     "openhands-watch",

@@ -18,6 +18,7 @@ STAGES = (
     ("guard", (sys.executable, "engineering-init/scripts/test_no_render_mandates.py")),
     ("sessions", (sys.executable, "openhands-sessions/scripts/test_sessions.py")),
     ("spawn", (sys.executable, "openhands-sessions/scripts/test_spawn.py")),
+    ("process", (sys.executable, "engineering-process/scripts/test_source_markers.py")),
 )
 TIMEOUT_EXIT_CODE = 124
 
@@ -139,6 +140,8 @@ def main() -> int:
                         help="sessions stage timeout (seconds)")
     parser.add_argument("--spawn-timeout", type=_positive_timeout,
                         help="spawn stage timeout (seconds)")
+    parser.add_argument("--process-timeout", type=_positive_timeout,
+                        help="process stage timeout (seconds)")
     args = parser.parse_args()
     stage_timeouts = {
         "watch": args.watch_timeout,
@@ -146,6 +149,7 @@ def main() -> int:
         "guard": args.guard_timeout,
         "sessions": args.sessions_timeout,
         "spawn": args.spawn_timeout,
+        "process": args.process_timeout,
     }
     return run_verification({
         name: args.timeout if timeout is None else timeout
