@@ -2,10 +2,8 @@
 name: openhands-watch
 description: >-
   Watch dispatched Agent Canvas child conversations and report
-  alive, hung, or terminal, plus per-child employee-task facts
-  (ticket, department, request_id, notify classification) read
-  from the sessions dispatch ledger. Use when the user asks to
-  openhands-watch, 巡查, 挂掉, 派发会话是否挂掉, or when a **dispatch window** must be
+  alive, hung, or terminal. Use when the user asks to openhands-watch,
+  巡查, 挂掉, 派发会话是否挂掉, or when a **dispatch window** must be
   waited on. Do not use to open or dispatch a conversation;
   that is openhands-sessions. Engineering implement/review/verify
   are employees (subagents), not watch targets. The planning
@@ -29,18 +27,10 @@ The normalized watch and session semantics are defined in [the harness capabilit
 2. Never print the API key. Credential, host, and transport mechanics (key header, backend/UI hosts, PowerShell 5.1) live in [../openhands-sessions/references/identity.md](../openhands-sessions/references/identity.md).
 3. Call `scripts/watch.py`. Do not `curl` child `/events/search` from any department.
 4. Do not POST `/api/conversations`. Do not write `dispatch_session.py`. Do not interrupt / pause / run the child unless the user said to.
-5. Read-only: watch never dispatches, advances tickets, or changes the engineering contract. Reading the dispatch ledger JSON is its only filesystem access; never call sessions' `save_ledger` / `record_ledger`.
+5. Read-only: watch never dispatches, advances tickets, or changes the engineering contract.
 6. At most 3 child ids in one watch.
 
 State classification (hung / terminal / alive mapping, heartbeat, output rules) → [classification](references/classification.md).
-
-## Task facts
-
-Terminal is not hop-done. Each child row in the verdict JSON carries an additive `task` object: `{ticket, department, request_id, dispatch_status, recorded_at, notify, reason}`, read read-only from the parent's ledger file (`~/.openhands/agent-canvas/dispatch-ledger/<parent_id>.json`; `OPENHANDS_DISPATCH_LEDGER_DIR` overrides the directory in tests). Ledger parent = explicit `--parent-id`, else the children's single common `parent_conversation_id`.
-
-- Dispatch facts come from the ledger entry whose `child_id` matches the child.
-- `notify`: `notified` / `missing-notify` once the child is terminal (a notify entry with that dispatch ticket exists in the parent ledger, or not); `finalization-failed` when the ledger is unreadable or its entries contradict (conflicting dispatch entries for the child, or a notify ticket matching no dispatch ticket); `n/a` while the child runs; `unknown` when no parent ledger can be identified (`--ids` only and no common parent).
-- Ledger problems never change the liveness verdict or the process exit code. Unavailable facts keep `null` fields plus a short `reason` (`ledger-unreadable`, `parent-ledger-unavailable`, `no-dispatch-entry`, `conflicting-dispatch-entries`).
 
 ## Steps
 
