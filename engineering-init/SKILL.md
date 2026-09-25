@@ -24,6 +24,7 @@ description: >-
 - `gh` / `git commit` only on the **landing repo**, never the origin repo.
 - Do not write process / planning / department / current ticket into `AGENTS.md`. Coding conventions, glossary, ADRs: [repo-docs.md](references/repo-docs.md). Existing files → follow the repo; do not overwrite.
 - Unconfirmed decisions → `grilling`. Unconfirmed → no issues, no graphs, no code.
+- Routing a call (including the close-out sessions `list`) → check `../engineering-routing/references/routing-table.md` first: a `registered` row is not routable; stop at the gate (enablement is a patch ticket). Consumer: [scripts/routing_registry.py](scripts/routing_registry.py).
 - Windows: `Path.write_text(..., encoding="utf-8")` → `gh … --body-file`. CJK only in files. Do not print tokens.
 - Spec markers: `engineering:contains` `engineering:uses` (working / to-be). As-is: `engineering:contains-asis` `engineering:uses-asis`. Seeing `github-engineering:*` → replace with the new markers.
 

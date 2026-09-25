@@ -2,7 +2,7 @@
 """Gate engineering-init's routing points on the routing-table registry.
 
 The registry is data — ``engineering-routing/references/routing-table.md``
-read at runtime, never engine code (ADR 0006 Decision 1). This module is a
+read at runtime, never engine code (ADR 0007 Decision 1). This module is a
 read-only consumer: engineering-init routes its calls through it like every
 other routing caller, reusing the primitives in
 ``engineering-routing/scripts/routing_table.py`` by import.
