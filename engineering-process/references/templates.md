@@ -174,7 +174,7 @@ Same ticket and the target department already has a dispatch child → that is a
 ## Nodes on the graph
 
 - Source: `engineering:source`. Default close at plan close-out.
-- Implement: close this after delivery passed. Extract headers on this ticket if needed.
+- Implement: close this after delivery passed. Research and write headers on this ticket if needed.
 - Gate: `blocked-by` implement. Person pass → close. Do not put a human on every acceptance.
 - Acceptance: `engineering:pr`, heads direct children ≤4. Mid layer heads write `merge/<child-acceptance>` or `feat/…`. Blocked → no PR.
 - Sink: open only if someone must see the merge phenomenon; `blocked-by` the final acceptance.

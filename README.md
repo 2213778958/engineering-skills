@@ -57,7 +57,7 @@ Talks to Agent Canvas: list profiles, open a conversation, dispatch a child. Rep
 Checks whether a dispatched child is alive, hung, or done. Planning does not watch after dispatch. Replace this file for Codex.
 
 **engineering-research**
-A research employee: answers one technical question or delivers one research document, repo library first, the web only for gaps. Turning a datasheet PDF into register headers is one of its functions; it does not open the PDF in this session and does not write drivers.
+A research employee: turns one requirement into one research directory under `docs/research/`, entered through its `README.md`. It splits the requirement into faces (approaches, assets, options, datasheet chip interfaces), researches them repo library first and the web only for gaps, and synthesizes one cross-checked answer. Raw materials live in `resources/` beside `master/` and `worktree/`, outside git, listed in `docs/research/resources.md`. It does not open PDFs in this session and does not write headers or drivers.
 
 **skill-maker**
 Writes or edits a skill. Commands only, no rationale. Same files under the Cursor skills dir and the OpenHands skills dir.

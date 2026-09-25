@@ -35,7 +35,7 @@ Path = contains node. Repo already has a layout or the user named one → follow
 - `<module>_cfg.h`: this-board clock/pin/timing
 - Repo already uses a single `<module>_hw.h` → follow the repo
 - `#pragma once`; `#include <stdint.h>`; prefix `MODULE_REG_*` / `MODULE_CFG_*`
-- Constant comments: datasheet + page/section. No source → delete or extract again
+- Constant comments: datasheet + page/section. No source → delete or research again
 - Location: that module's contains directory. Repo already puts headers in `Inc/` → follow the repo
 
 ## Cross-layer / same-layer exposure (before drawing uses)

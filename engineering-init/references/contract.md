@@ -19,7 +19,7 @@ gh issue reopen <n>
 - Unblock = upstream tickets closed. `blockedBy` still has open → do not pull the downstream. Do not unblock by deleting `blocked-by` edges
 - **Default 1 source 1 sink.** Multiple only if the user says so. Do not use `--strict-one-one` to block `--write` for the default
 - PR nodes are pinned on the graph from the start. Not unblocked to an acceptance ticket → no PR
-- Do not open a separate datasheet ticket. Need headers → extract inside that implement ticket's delivery
+- Do not open a separate datasheet ticket. Need headers → research the chip interface inside that implement ticket's delivery; delivery implement writes the headers from the research findings
 - Spec issue is not a node by default. User Stories stay off this graph
 - Do not write extra `Depends on:` body edges
 - A second flow graph → only if the user says so
