@@ -136,7 +136,7 @@ receipts: <role=pass|fail|none; …>
 suggested next: hand off <department> #<n> | decide | stop
 ```
 
-Then extra lines as needed. This message is **not** "推进". Report the JSON `url` / `parent_id`.
+Then extra lines as needed. This message is **not** an advance request. Report the JSON `url` / `parent_id`.
 
 Trust `launched_agent_profile` and create-time `agent.llm.reasoning_effort`. Ignore the child's self-identified name and the UI picker.
 

@@ -44,7 +44,7 @@ python <this-skill>/scripts/watch.py --parent-id <this conversation id> --loop
 
 `--loop` omitted → one snapshot. `--stall-sec` default 600. `--timeout-sec` default 5400. `--poll-sec` default 30.
 
-Planning handoff does not watch (stop after spawn). Employees are Task subagents, not watch targets. `--loop` only if the user asked "巡查" on a dispatch **window**. Hung / error / timeout → fail that wait; do not dispatch again unless the user says so. Do not GET child events yourself.
+Planning handoff does not watch (stop after spawn). Employees are Task subagents, not watch targets. `--loop` only if the user asks to keep watching a dispatch **window** (e.g. "巡查", "keep an eye on it"). Hung / error / timeout → fail that wait; do not dispatch again unless the user says so. Do not GET child events yourself.
 
 Print the JSON. Follow the process exit:
 

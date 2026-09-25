@@ -21,8 +21,9 @@ Planning is a **department** (user entry). The department window is **manage**. 
 - Planning **manage** **decide** → **stay** (staff `planning implement` + `planning review`, and `research` when planning needs research input; do not run patch here).
 - Planning **manage** **hands off** to another department → **dispatch**.
 - Department manage staffing an employee → **delegate**.
-- User said "子会话" / "开会话" → **dispatch** another **planning** department window.
-- User said "subagent" / "子代理" / "子智能体" → **delegate**.
+- The user asks for a separate conversation window (e.g. "子会话", "开会话", "new session") → **dispatch** another **planning** department window.
+- The user asks for a subagent to do a task inside this conversation (e.g. "subagent", "子代理", "子智能体") → **delegate**.
+- Judge these by intent, not wording. Unclear → ask the user.
 - Do not hand off an employee. Do not Task a department. Do not rewrite employee delegate to dispatch.
 
 User named a profile or model → follow the user for the **target**, then resolve via sessions. If the user did not name a target: repo `docs/agents/MODELS.md` has a row for this **role** → use that row's **target**. Planning department row: `stay`. Other department rows: `dispatch`. Employee rows: ignore a `dispatch` link; still **delegate**. Else use the dispatch table below. Only targets that appear in sessions **list** / subagent catalog. Missing row → the dispatch table's unconfirmed-decision row. Do not pick `gpt-6-astra-*`.

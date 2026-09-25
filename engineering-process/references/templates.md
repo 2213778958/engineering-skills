@@ -117,7 +117,7 @@ Follow the **duty table**. Hop `template` = that department's **manage** window.
 | **delivery** | open/merge PR; extra research ticket; same-ticket switch to acceptance; hand off to another department; manage writing product code |
 | **acceptance** | PR on an implement ticket; manage merging heads or worktrees; hand off to another department |
 | **arbitration** | debug; edit product code; open/merge PR; nest arbitration; apply the verdict (planning implement); manage writing the opinion |
-| **human** | change contract; edit code; open/merge PR; staff implement/review/verify; treat "推进" as entry; notify before pass/fail |
+| **human** | change contract; edit code; open/merge PR; staff implement/review/verify; treat an advance request as entry; notify before pass/fail |
 
 ## Stop (these two tables are source of truth)
 

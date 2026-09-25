@@ -2,8 +2,9 @@
 """Guard: skill and doc bodies are English; Chinese lives only in allowed spots.
 
 Allowed in Markdown: frontmatter (trigger words), the ``## Terms`` tables of
-the three entry skills, backticked literals, and double-quoted spans listed in
-``QUOTED`` (user phrases and UI labels). Python allows double-quoted string
+the three entry skills, backticked literals, user-phrase examples inside
+``(e.g. ...)``, and the UI labels in ``UI_LABELS``. User phrases are examples of
+an intent, never the condition. Python allows double-quoted string
 literals (runtime markers, fixtures). ``README.md`` and ``CONTEXT.md`` stay bilingual.
 """
 
@@ -26,7 +27,9 @@ TERMS = {
     "回传": "report back",
     "开会话": "open a session",
 }
-QUOTED = {"推进", "领票", "下一张票", "主管", "继续工程", "子会话", "开会话", "子代理", "子智能体", "巡查", "无工作区"}
+UI_LABELS = {"无工作区"}
+EXAMPLES = re.compile(r"\(e\.g\. [^)]*\)")
+LITERAL_PHRASE = re.compile(r'User (?:said|typed|commands|asked) "')
 
 
 def tracked(pattern: str) -> list[str]:
@@ -56,7 +59,8 @@ def terms_rows(rel: str) -> dict[str, str]:
 def stray(line: str, markdown: bool) -> bool:
     line = re.sub(r"`[^`]*`", "", line)
     if markdown:
-        line = re.sub(r'"([^"]*)"', lambda m: "" if m.group(1) in QUOTED else m.group(0), line)
+        line = EXAMPLES.sub("", line)
+        line = re.sub(r'"([^"]*)"', lambda m: "" if m.group(1) in UI_LABELS else m.group(0), line)
     else:
         line = re.sub(r'"[^"]*"', "", line)
     return bool(CJK.search(line))
@@ -87,12 +91,21 @@ class EnglishBodyTests(unittest.TestCase):
         ]
         self.assertEqual(bad, [])
 
-    def test_user_phrases_stay_literal(self) -> None:
-        routing = (ROOT / "engineering-routing" / "SKILL.md").read_text(encoding="utf-8")
-        self.assertIn('User said "子会话" / "开会话"', routing)
+    def test_intent_not_literal_phrases(self) -> None:
+        bad = [
+            f"{rel}:{number}"
+            for rel in tracked("*.md")
+            if rel not in BILINGUAL
+            for number, line in body_lines(rel)
+            if LITERAL_PHRASE.search(line)
+        ]
+        self.assertEqual(bad, [])
         supervise = (ROOT / "engineering-process" / "references" / "supervise.md").read_text(encoding="utf-8")
-        self.assertIn('"推进" / "领票" / "下一张票" / "主管" / "继续工程"', supervise)
-        self.assertNotIn('"advance"', supervise)
+        self.assertIn("**Advance request** = the user asks to move the project forward", supervise)
+        self.assertIn("Judge by intent, not wording; unclear → ask.", supervise)
+        routing = (ROOT / "engineering-routing" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("The user asks for a separate conversation window (e.g.", routing)
+        self.assertIn("Judge these by intent, not wording. Unclear → ask the user.", routing)
 
     def test_entry_skills_share_the_terms_table(self) -> None:
         for skill in ENTRY_SKILLS:

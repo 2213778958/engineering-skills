@@ -23,7 +23,7 @@ This skill owns the engineering meaning of a dispatch: report arrival correlated
 ## Rules
 
 1. Read-only. Never POST / PATCH / DELETE / run. Never resume, reply to, or mutate a child conversation or the dispatch ledger.
-2. Explicit inspection only, run on demand by planning after a dispatch. Never an automatic loop, never unattended, never on a timer. After handoff, planning still stops; this tool runs only when the user asks "巡查".
+2. Explicit inspection only, run on demand by planning after a dispatch. Never an automatic loop, never unattended, never on a timer. After handoff, planning still stops; this tool runs only when the user asks to inspect dispatched children (e.g. "巡查", "check on them").
 3. Never print the API key. Header `X-Session-API-Key` from `~/.openhands/agent-canvas/api-key.txt`.
 4. Latch is not overridden: a `hung` or gap verdict never resumes the child and never dispatches again. Report and wait for the user.
 5. `terminal` alone never counts as `notified`. `notified` requires the correlated `engineering:report` in the parent conversation's events; an unrelated conversation's report does not count.
