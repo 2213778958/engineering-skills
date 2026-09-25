@@ -19,8 +19,8 @@ The first version of this decision (#75) kept research directories in the code r
 5. Raw materials live in `resources/`, also beside `master/`, outside every git repo. Sharing them means packing them separately (archive or GitHub Release asset).
 6. `research:resources.md` lists every raw file with URL, fetch date, license, size and sha256. A missing file is fetched again and hash-checked; unreachable → listed as not found.
 7. Markdown refers to files as `research:<path>` and `resources:<path>`. Each root resolves from `ENGINEERING_RESEARCH` / `ENGINEERING_RESOURCES`, else the first parent directory holding both `master/` and the library, else the library is created beside the first parent's `master/`. No `master/` parent and no variable → the whole research fails with `Missing: <variable>` (for `resources/`, only when a face must store or read a raw file).
-8. Material not found is not a failure; the entry md lists it with where research looked. A chip-interface face with no datasheet PDF anywhere fails.
-9. A datasheet is one face: the PDF goes to `resources:datasheets/`, registers and interfaces go to `<slug>--chip-<part>.md` with page references, and the delivery implement writes the header files from that md per `engineering-research/references/headers.md`. No agent downstream opens the PDF.
+8. Material not found is not a failure; the entry md lists it with where research looked. A face whose type needs a primary document (a datasheet, a spec, vendor docs) fails when none is found anywhere.
+9. Research lists common face types (approach, options, library, assets, api, standard, chip, facts) with equal weight; a datasheet is the `chip` type: the PDF goes to `resources:datasheets/`, registers and interfaces go to its findings file with page references, and the delivery implement writes the header files from that md per `engineering-research/references/headers.md`. No agent downstream opens the PDF.
 10. Research is staffed by the delivery (default), acceptance or planning manage; never human or arbitration.
 
 ## Consequences

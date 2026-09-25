@@ -54,7 +54,14 @@ class ResearchContractTests(unittest.TestCase):
         text = read(SKILL)
         self.assertIn("## Faces", text)
         self.assertNotIn("## Chip-interface face", text)
-        self.assertIn("the input of [references/headers.md](references/headers.md)", text)
+        self.assertNotIn("chip-interface face", text)
+        faces = text.split("## Faces", 1)[1].split("\n## ", 1)[0]
+        types = re.findall(r"^\| `(\w+)` \|", faces, flags=re.M)
+        self.assertEqual(
+            types, ["approach", "options", "library", "assets", "api", "standard", "chip", "facts"]
+        )
+        self.assertIn("a face whose type needs a primary document (Faces table)", text)
+        self.assertIn("`chip` findings are the input of [references/headers.md](references/headers.md)", text)
         self.assertIn("**Synthesize.**", text)
         self.assertIn("(≤3)", text)
 

@@ -1,6 +1,6 @@
 # Datasheet headers
 
-Written by the **delivery implement** from a research directory's `<slug>--chip-<part>.md` (a `research:` path). Research does not write headers. Resolve output path; stop at the first hit:
+Written by the **delivery implement** from a research directory's `chip` findings file (`<slug>--<face>.md`, a `research:` path). Research does not write headers. Resolve output path; stop at the first hit:
 
 1. Path the implement ticket names
 2. Repo `docs/agents/`, `AGENTS.md`, `CONTEXT.md`, existing module header naming

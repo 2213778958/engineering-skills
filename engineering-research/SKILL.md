@@ -37,7 +37,7 @@ Requirement missing → stop; `Result: fail` + `Missing: <fields>`. Do not guess
 
 No research root (layout.md) → the whole research stops; `Result: fail` + `Missing: ENGINEERING_RESEARCH`. No resources root while a face must store or read a raw file → the whole research stops; `Result: fail` + `Missing: ENGINEERING_RESOURCES`.
 
-Material not found → not an input failure: finish with what was found; list what was not found and where it looked. Exception: a chip-interface face with no datasheet PDF found anywhere cannot produce findings → `Result: fail` + where it looked.
+Material not found → not an input failure: finish with what was found; list what was not found and where it looked. Exception: a face whose type needs a primary document (Faces table) and none is found anywhere cannot produce findings → `Result: fail` + where it looked.
 
 ## Sources
 
@@ -47,11 +47,24 @@ Source order — the same for every face:
 2. The research library: `research:Home.md` (already researched → reuse and extend that directory); the `resources/` library through `research:resources.md` (a listed resource missing locally → fetch it again from its URL and check the hash).
 3. The internet: only the parts 1–2 do not answer. Name each source.
 
-A raw file found in the repo or downloaded (datasheet PDF, asset) is copied into `resources/` (not removed from git) and its manifest row goes into the face receipt. The manage window never opens a raw file; it reads findings md only.
+A raw file found in the repo or downloaded (PDF, spec, asset) is copied into `resources/` (not removed from git) and its manifest row goes into the face receipt. The manage window never opens a raw file; it reads findings md only.
 
 ## Faces
 
-A face is one question the requirement depends on. Typical faces: `approach` (prior solutions), `assets` (reusable materials, license, format), `options` (technical selection), `chip-<part>` (registers / interfaces from a datasheet PDF under `resources:datasheets/`; findings list base addresses, offsets, bitfields, timing and pin constants, each with PDF file name + page or section — the input of [references/headers.md](references/headers.md), which the delivery implement follows to write headers), `facts` (repo facts). Name others freely; one findings file per face.
+A face is one question the requirement depends on; one findings file per face (`<slug>--<face>.md`). Common types — pick the ones the requirement needs, name others freely:
+
+| Type | Finds | Typical sources | Findings list | Primary document |
+|---|---|---|---|---|
+| `approach` | how others solved it | open-source projects, papers, talks, write-ups | approaches, trade-offs, links | no |
+| `options` | technical selection | official docs, benchmarks | comparison table, criteria, recommendation | no |
+| `library` | reusable code / dependencies | package registries, GitHub | name, version, license, maintenance, API fit | no |
+| `assets` | reusable art / audio / models / fonts | asset sites, GitHub | name, license, format, `resources:` path | no |
+| `api` | third-party API / SDK behavior | vendor docs, SDK source | calls, parameters, limits, auth, doc links | vendor docs |
+| `standard` | protocol / specification requirements | specs, RFCs | clauses, each with section reference | the spec |
+| `chip` | registers / interfaces of a part | datasheet, reference manual, app notes | addresses, offsets, bitfields, timing, pins, each with file + page | the datasheet |
+| `facts` | what this repo already does | this repo | facts, each with `file:line` | no |
+
+Raw documents go to `resources/` (`datasheets/`, `refs/`, `assets/`). A findings file that feeds a downstream format says so; `chip` findings are the input of [references/headers.md](references/headers.md).
 
 A face depends on another when its search needs that face's conclusion (e.g. `assets` needs the engine and art style from `approach`). Write the dependencies before delegating.
 
