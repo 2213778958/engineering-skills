@@ -78,6 +78,13 @@ class LayoutTests(unittest.TestCase):
     def test_research_directory_is_markdown_only(self) -> None:
         self.assertIn("Markdown only", read(LAYOUT))
 
+    def test_no_master_parent_fails_closed(self) -> None:
+        self.assertIn("`Missing: ENGINEERING_RESOURCES`", read(LAYOUT))
+
+    def test_only_synthesis_writes_the_manifest(self) -> None:
+        self.assertIn("Only the synthesis subagent writes this file", read(LAYOUT))
+        self.assertIn("returned in the receipt, not written to `resources.md`", read(SKILL))
+
 
 class CallerAgreementTests(unittest.TestCase):
     def test_routing_row_names_research_directory(self) -> None:
@@ -98,10 +105,19 @@ class CallerAgreementTests(unittest.TestCase):
         self.assertIn("headers are written by delivery implement from the findings", hops)
 
     def test_no_caller_says_extract_headers(self) -> None:
-        pattern = re.compile(r"[Ee]xtract headers|datasheet headers included")
+        pattern = re.compile(
+            r"[Ee]xtract headers|datasheet headers included|抽寄存器头文件|交一份调研文档"
+        )
+        docs = [ROOT / "README.md", ROOT / "CONTEXT.md"]
         for skill in ("engineering-init", "engineering-process", "engineering-routing"):
-            for doc in sorted((ROOT / skill).rglob("*.md")):
-                self.assertIsNone(pattern.search(read(doc)), doc.relative_to(ROOT))
+            docs.extend(sorted((ROOT / skill).rglob("*.md")))
+        for doc in docs:
+            self.assertIsNone(pattern.search(read(doc)), doc.relative_to(ROOT))
+
+    def test_manage_does_not_write_research_files(self) -> None:
+        text = read(SKILL)
+        self.assertIn("never by the manage window", text)
+        self.assertIn("synthesis subagent", text)
 
     def test_adr_records_the_decision(self) -> None:
         text = read(ADR)

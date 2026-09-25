@@ -13,7 +13,7 @@ docs/research/
 ```
 
 - Markdown only. No PDFs, images, archives or downloaded pages under `docs/research/`.
-- One directory per research topic. Same topic again → extend the existing directory; add a dated section to its entry md.
+- One directory per research topic. New directory: `<YYYY-MM>` = the current month, `<slug>` = the topic in kebab-case. Same topic again → keep the existing directory name; add a dated section to its entry md.
 - Index row: `| <YYYY-MM> | <topic> | [<slug>](<slug>/README.md) |`. Create `docs/research/README.md` with a `| date | topic | entry |` header if missing.
 
 ## Resource library (outside git)
@@ -41,7 +41,8 @@ Resolve the root, first hit wins:
 
 1. Environment variable `ENGINEERING_RESOURCES`.
 2. From the current checkout, walk up the parents; the first directory that holds both `master/` and `resources/` → its `resources/`.
-3. None → create `resources/` beside `master/` in the container.
+3. No `resources/` yet → the first parent directory that holds `master/`: create `resources/` there.
+4. No such parent (a plain clone) and no environment variable → a face that must store or read a raw file ends `Result: fail` + `Missing: ENGINEERING_RESOURCES`.
 
 ## Manifest
 
@@ -54,5 +55,6 @@ Resolve the root, first hit wins:
 ```
 
 - Every `resources:` path used in any research md has a row.
+- Only the synthesis subagent writes this file; face subagents return their rows in the receipt.
 - Missing locally → fetch from the URL, check sha256; mismatch or unreachable → list under not found in the entry md.
 - License unknown → write `unknown`; the synthesis step flags it.

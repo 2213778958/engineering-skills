@@ -15,7 +15,7 @@ Written by the **delivery implement** from a research directory's `findings/chip
 
 Directory: ticket path → repo conventions → contains node for that module (C: same directory as `.c`). Do not default to `include/` / `Inc/`. Repo already uses `Inc/` → follow the repo.
 
-Repo convention is already a single file (e.g. `<module>_hw.h`) → follow it. Symbols not in the findings → staff research again for that face; do not invent typical values.
+Repo convention is already a single file (e.g. `<module>_hw.h`) → follow it. Symbols not in the findings → list them in the receipt; the manage staffs research again for that face. Do not invent typical values.
 
 `#pragma once` or a standalone include guard. `#include <stdint.h>`. Prefix follows the repo; else `MODULE_REG_*` / `MODULE_CFG_*`.
 
