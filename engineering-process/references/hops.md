@@ -10,7 +10,7 @@ Person said fail → reopen the previous implement ticket and send it back to `r
 
 ## 3b. `arbitration` (department)
 
-Staff implement + review via MODELS (**delegate**). If `verify:` is not `none`, staff verify via MODELS (**delegate**). Roles: `arbitration implement` / `arbitration review` / `arbitration verify`. Wait until each staffed receipt is in this conversation. Receipts missing → do not write a verdict, do not finish. Manage writes the verdict comment only after receipts. No product-code edits, no commit/push, no open/merge PR. No datasheet reading, no research dispatch. Do not spawn a child conversation.
+Staff implement + review via MODELS (**delegate**). If `verify:` is not `none`, staff verify via MODELS (**delegate**). Roles: `arbitration implement` / `arbitration review` / `arbitration verify`. Wait until each staffed receipt is in this conversation. Receipts missing → do not write a verdict, do not finish. Manage writes the verdict comment only after receipts. No product-code edits, no commit/push, no open/merge PR. No datasheet reading, no research staffing. Do not spawn a child conversation.
 
 implement: reproduce, give an arbitration opinion, do not fix. review: review that opinion only. verify: run `verify:`; check whether reproduction holds. `none` → `Verify: none`.
 
@@ -61,7 +61,7 @@ Then templates.md **Stop** tables (After 决策 receipts).
 
 Current ticket body contains `engineering:pr` → stop; that is 3e.
 
-Need headers or research → `engineering-research` (role `research`; inside this implement ticket; no separate extract ticket; any department's manage may staff it); it delivers a research directory committed by its synthesis subagent, and the implement prompt names its entry md as read-only input; the review prompt names the synthesis commit SHA as a known non-implement commit, outside the allowlist check (headers are written by delivery implement from the findings), then staff implement and review (**delegate**) (roles `delivery implement` / `delivery review`). Wait for each receipt before the next step. Staff `delivery verify` only after review passes. Receipts required by the chosen path must be in this conversation before push, close, or notify. implement may add+commit only; no push. verify runs `verify:`. Manage must not edit product files. No open/merge PR. Do not close gate or acceptance tickets. Do not resubmit a rejected implementation unchanged. Do not spawn a child conversation.
+Need headers or research → `engineering-research` (role `research`; inside this implement ticket; no separate extract ticket); it delivers a research directory committed by its synthesis subagent, and the implement prompt names its entry md as read-only input; the review prompt names the synthesis commit SHA as a known non-implement commit, outside the allowlist check (headers are written by delivery implement from the findings), then staff implement and review (**delegate**) (roles `delivery implement` / `delivery review`). Wait for each receipt before the next step. Staff `delivery verify` only after review passes. Receipts required by the chosen path must be in this conversation before push, close, or notify. implement may add+commit only; no push. verify runs `verify:`. Manage must not edit product files. No open/merge PR. Do not close gate or acceptance tickets. Do not resubmit a rejected implementation unchanged. Do not spawn a child conversation.
 
 implement receipt:
 

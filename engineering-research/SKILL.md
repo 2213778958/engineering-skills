@@ -19,13 +19,13 @@ description: >-
 
 One **research** employee: one requirement in, one **research directory** out. The manage that staffs research runs these steps; every file under `docs/research/` is written by a delegated subagent, never by the manage window. Every call delivers the same shape — `docs/research/<YYYY-MM>-<slug>/`, entered through its `README.md`. Downstream agents enter from that md; header files, asset imports and code are their work, not research's.
 
-Research is an employee role, not a department: its workers (face and synthesis subagents) are employees (Task); the steps run in the staffing manage's window. Do not write drivers or headers, do not open issues, do not paste PDF body into this conversation. Do not open a child conversation. Any department's **manage** may staff this role; the default home is the **delivery** implement ticket.
+Research is an employee role, not a department: its workers (face and synthesis subagents) are employees (Task); the steps run in the staffing manage's window. Do not write drivers or headers, do not open issues, do not paste PDF body into this conversation. Do not open a child conversation. Staffed by the **delivery** (default: its implement ticket), **acceptance** or **planning** manage (planning: during 决策, as input to planning). **human** and **arbitration** do not staff research.
 
 Delegate: read and run `engineering-routing` (role `research`). Before delegating, check `../engineering-routing/references/routing-table.md`: only an `enabled` row is routable; a `registered` row stops at the gate (enablement is a patch ticket). Repo `MODELS.md` target wins if present; ignore a `dispatch` link. Do not read `openhands-sessions`, do not copy POST, do not call Task directly.
 
 Directory layout, naming, resource manifest and `resources:` paths: [references/layout.md](references/layout.md).
 
-Commit: the synthesis subagent `git add`s only `docs/research/` and commits on the ticket's branch; no push, no other path. `docs/research/` is outside every implement allowlist; implement and review only read it.
+Commit: the synthesis subagent `git add`s only `docs/research/` and commits on the ticket's branch; no push, no other path. Planning-staffed research has no ticket branch: it commits on the default branch in `master/`, and planning implement pushes it. `docs/research/` is outside every implement allowlist; implement and review only read it.
 
 ## Inputs
 

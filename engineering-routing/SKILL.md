@@ -18,16 +18,18 @@ Pick link and target first, then read and run `engineering-sessions` (it reads t
 
 Planning is a **department** (user entry). The department window is **manage**. Other departments this process 分发: delivery / acceptance / arbitration / human. Planning and human **manage** talk to the user. Human: how to test and accept, and help. **Employee** = implement / review / verify / research (Task). Duties: `engineering-process` templates.md **职责表**. Do not skip department → employee.
 
-- Planning **manage** **决策** → **stay** (staff `planning implement` + `planning review`; do not run patch here).
+- Planning **manage** **决策** → **stay** (staff `planning implement` + `planning review`, and `research` when planning needs research input; do not run patch here).
 - Planning **manage** **分发** another department → **dispatch**.
 - Department manage staffing an employee → **delegate**.
 - User said "子会话" / 开会话 → **dispatch** another **planning** department window.
 - User said "subagent / 子代理 / 子智能体" → **delegate**.
 - Do not 分发 an employee. Do not Task a department. Do not rewrite employee delegate to dispatch.
 
-User named a profile or model → follow the user for the **target**, then resolve via sessions. If the user did not name a target: repo `docs/agents/MODELS.md` has a row for this **role** → use that row's **target**. Planning department row: `stay`. Other department rows: `dispatch`. Employee rows: ignore a `dispatch` link; still **delegate**. Else use the table below. Only targets that appear in sessions **list** / subagent catalog. Missing row → `grilling`. Do not pick `gpt-6-astra-*`.
+User named a profile or model → follow the user for the **target**, then resolve via sessions. If the user did not name a target: repo `docs/agents/MODELS.md` has a row for this **role** → use that row's **target**. Planning department row: `stay`. Other department rows: `dispatch`. Employee rows: ignore a `dispatch` link; still **delegate**. Else use the dispatch table below. Only targets that appear in sessions **list** / subagent catalog. Missing row → the dispatch table's unconfirmed-decision row. Do not pick `gpt-6-astra-*`.
 
-## Table
+The dispatch table (task type → link) is not the routing table: the routing table `references/routing-table.md` lists which skills are routable.
+
+## Dispatch table
 
 | Task type | Link | Target |
 |---|---|---|
@@ -40,6 +42,7 @@ User named a profile or model → follow the user for the **target**, then resol
 | Long-running implementation that writes files | delegate | subagent `general-purpose` |
 | Medium-complexity implementation | delegate | subagent `general-purpose` |
 | Several parallel employees | delegate | subagent `general-purpose` ×N (concurrency ≤ 3) |
+| Unconfirmed decision (a caller read and ran routing for the decision) | stay | this conversation's model; run `grilling` until the user confirms |
 | Planning manage 决策 (staff only; no patch in this window) | stay | this conversation's model |
 | Planning implement (patch; no product code) | delegate | subagent `general-purpose` |
 | Planning department 分发 another department | dispatch | MODELS other-department row, else this conversation's spawnable profile |
@@ -59,7 +62,7 @@ User named a profile or model → follow the user for the **target**, then resol
 
 ## route
 
-1. Classify the task type (process: research / planning department 决策 / 分发 another department / other department hop / employee role from `MODELS.md`). Unsure → `grilling` (decision) or scan the repo (fact).
+1. Classify the task type (process: research / planning department 决策 / 分发 another department / other department hop / employee role from `MODELS.md`). Unsure → the unconfirmed-decision row (decision) or scan the repo (fact).
 2. **stay** → finish in this conversation. No POST, no Task. ACP bridge is allowed.
 3. **dispatch** → planning **manage** 分发 **another** department, or user 开会话 (another **planning** department window). sessions `spawn.py` only. Omit `--this-id`. Do not pass `CURSOR_CONVERSATION_ID`. Process 分发 prompt: this child is that department **manage**; staff employees per 职责表; wait until each receipt is in that window; then sessions **notify**; stop. User 开会话 prompt: this child is the **planning** manage window.
 4. **delegate** → sessions **delegate** only (Task). Same prompt rules. Wait until the receipt is in this conversation. Background Task / fire-and-forget → **fail**. Receipt missing → **fail**. No Task → fail; do not dispatch.

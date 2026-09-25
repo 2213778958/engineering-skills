@@ -5,7 +5,7 @@ Landing repo `docs/agents/MODELS.md`. Do not write the origin repo. Do not put t
 ## Rules
 
 - Target names must resolve via `engineering-sessions` **list** (it runs the adapter named by the `sessions:` latch; default `openhands-sessions`). Do not copy POST. Do not invent catalog ids.
-- Role → task type only from the `engineering-routing` table. Routable skills: `enabled` rows of `engineering-routing/references/routing-table.md`; a `registered` row is not routable. Do not invent a third task-type table here.
+- Role → task type only from the `engineering-routing` dispatch table. Routable skills: `enabled` rows of `engineering-routing/references/routing-table.md`; a `registered` row is not routable. Do not invent a third task-type table here.
 - Write the routing **link as the table says**. Planning manage cell is `stay`. Other department manage cells are `dispatch`. Employee cells are `delegate`. Do not rewrite `delegate` to `dispatch`. Do not write `delegate` on a manage cell.
 - Planning is a **department**. Conversation windows. Planning department `stay`. 分发 another department (`delivery` / `acceptance` / `arbitration` / `human`) `dispatch`. Target for stay = **this conversation's model** (ACP is the Cursor bridge, not the role; grok via ACP is allowed). Target for dispatch = a spawnable profile from sessions **list** (same family/effort as this conversation when possible).
 - **Employee** cells: `delegate` + a resolvable target. Those are not conversation windows. Department **manage** cells are the seat. MODELS must not write `dispatch` on implement / review / verify / research. Duties: process templates.md **职责表**.

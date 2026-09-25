@@ -27,4 +27,4 @@ Break a rule → **stop or fail**.
 4. Use [references/templates.md](references/templates.md) for duties, stop tables, hop selection, review disposition, department resume, and isolation.
 5. When creating, merging, or removing ticket trees, read and run [references/worktree.md](references/worktree.md).
 
-Whenever a department staffs an employee, read and run `engineering-routing`; do not directly wire or invoke lower-level skills. Research / datasheet reading → role `research` (`engineering-research`), staffable by any department's manage (rules.md 6, 18).
+Whenever a department staffs an employee, read and run `engineering-routing`; do not directly wire or invoke lower-level skills. Research / datasheet reading → role `research` (`engineering-research`), staffable by the delivery, acceptance or planning manage; never human or arbitration (rules.md 6, 18).
