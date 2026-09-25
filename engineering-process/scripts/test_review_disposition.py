@@ -5,7 +5,10 @@ import re
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-SKILL = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+SKILL = "\n".join(
+    (ROOT / name).read_text(encoding="utf-8")
+    for name in ("SKILL.md", "references/rules.md")
+)
 TEMPLATES = (ROOT / "references" / "templates.md").read_text(encoding="utf-8")
 ROW = re.compile(
     r"^\| `(?P<state>[^`]+)` \| `(?P<event>[^`]+)` \| "

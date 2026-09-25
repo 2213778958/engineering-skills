@@ -8,12 +8,12 @@ Planning is a **department**, not a layer above departments. Other departments t
 
 | Layer | Who | Window | Does | Must not |
 |---|---|---|---|---|
-| **department (manage)** | planning | user entry: `parent_conversation_id` empty | talk to the user; **分发** one graph ticket to **another** department, then stop; or **决策**: staff `planning` implement + review, wait receipts, then stop | run delivery/acceptance/arbitration/human hops; run the phenomenon test; run patch; watch the other department; 分发 to itself; staff other departments' employees |
+| **department (manage)** | planning | user entry: `parent_conversation_id` empty | talk to the user; **分发** one ticket to **another** department, then stop; or **决策**: staff `planning` implement + review, wait receipts, then stop | run delivery/acceptance/arbitration/human hops; run the phenomenon test; run patch; watch the other department; 分发 to itself; staff other departments' employees |
 | **department (manage)** | delivery / acceptance / arbitration | `spawn.py --mode dispatch` child | one tree `issue:`; staff **employees** per 职责表; wait for each receipt; finish that hop; sessions **notify**; stop | 分发 another department; reset to planning; treat user 推进 as entry; finish after launching Task; do implement/review/verify work |
 | **department (manage)** | human | `spawn.py --mode dispatch` child | one tree `issue:` (or main checkout if no tree); talk to the user: how to test and accept, and help; wait for pass/fail; sessions **notify** | staff implement/review/verify; 分发; treat user 推进 as entry |
-| **employee** | implement / review / verify / datasheet extract | Task subagent only | the receipt | a conversation window; `spawn.py`; `git push`; `gh pr` |
+| **employee** | implement / review / verify / research | Task subagent only | the receipt | a conversation window; `spawn.py`; `git push`; `gh pr` |
 
-**分发** = already-created graph ticket (init to-tickets) → write hop + `issue:` on the **ticket tree** → `planning` implement creates the tree if needed → `spawn.py --mode dispatch` that **other** department → report URL → **stop**. Do not watch.
+**分发** = already-created ticket (init to-tickets) → write hop + `issue:` on the **ticket tree** → `planning` implement creates the tree if needed → `spawn.py --mode dispatch` that **other** department → report URL → **stop**. Do not watch.
 
 **决策** = planning **manage** own hop. Stay. Staff `planning` implement (`engineering-init` **patch`) + `planning` review. Wait receipts. Do not run patch in this window. Do not spawn. After receipts: templates.md **Stop** tables (may 分发 once this turn).
 
@@ -52,14 +52,15 @@ Else (planning): scan
 
 ```
 gh issue list --label <label> --state open --limit 50 --json number,title,url,blockedBy
+gh issue view <n> --json blockedBy,subIssues
 ```
 
-Keep only unblocked: `blockedBy` empty, or every item closed. Open upstream → drop it. No ticket → stop; report still-open sinks (may be more than one).
+GitHub-native ordering only. Keep only unblocked: `blockedBy` empty or every item closed, and no open sub-issue parent above (an open parent sub-issue blocks its children, matching GitHub sub-issue `blocked` semantics). Open upstream → drop it. No ticket → stop; report still-open sinks (may be more than one).
 
 ## Steps: supervise
 
 1. **Latch.** Detect per canvas.md. Print imported / `master` or `root` / `worktree`. Not wrapped → stop, init canvas.md. Run sessions `spawn.py --mode this` **before** `cd` checkout (cwd may be imported or `master/` / `root/`; the script matches both). Parent empty → planning department (main `template: planning`, `issue: none`). Parent set → read the ticket-tree `PROCESS.md`; hop empty → stop; hop is `planning` → **stop** (planning department is not a child); hop is delivery/acceptance/arbitration/human → that department, skip to step 3. Then `cd` main checkout. Then read main `PROCESS.md` / `MODELS.md` (rules 1, 3–4, 17). Missing MODELS → stop, init must fill. Planning and this turn is not `engineering:report` and this conversation has not confirmed yet → Entry **Planning session start** (print PROCESS fields + MODELS; **wait**; do not go to step 2). User typed 推进 on another department window → **stop**, Entry. This turn starts with `engineering:report` → Entry 回传 (templates.md **Stop** tables).
 2. **Planning department: 决策 or 分发.** Main `issue:` stays `none`. Run next (one ticket). If that ticket's tree already has `issue:` = this number, ticket still open, and `template:` is a department hop → use that hop (do not recompute). Else hop from templates.md "hop from the ticket":
-   - hop `planning` → **决策** (this department's hop): run 3c. Do not write a tree hop. Do not spawn. Then "When to stop".
+   - hop `planning` → **决策** (this department's hop): run 3c. Do not write a tree hop. Do not spawn. Then "When to stop" above.
    - else → **分发** to **another** department: write hop + `issue:` on that **ticket tree**. Just closed implement `#n` → prefer a ticket `#n` blocked (human then acceptance). None → hop table. Named sibling implement while a `#n`-blocked human/acceptance is still open → **stop**. `blockedBy` still open → stop. Paused → stop. Implement or acceptance tree missing → staff `planning implement` to create it per worktree.md; wait that receipt; manage must not run `git worktree`. `spawn.py --mode dispatch` that department (prompt: this child is that department **manage**; staff employees per 职责表; wait until each receipt is in that window; then sessions **notify**; stop). Report URL. **Stop.** Do not watch. Do not Task delivery implement.
-3. **Other department hop** (3a / 3b / 3d / 3e from the **tree** `template` only; never 3c). Staff employees **delegate** (read and run `engineering-routing`). Wait until each receipt is in this conversation before the next employee or hop action. Background Task → **fail**. Receipts missing → do not update hop-done fields, do not notify, do not finish. After receipts and hop actions: update that tree `PROCESS.md` (disk only; **do not git add**). Write `engineering:report` and run sessions `spawn.py --mode notify`. Notify fail → **fail**. Then "When to stop".
+3. **Other department hop** (3a / 3b / 3d / 3e from the **tree** `template` only; never 3c). Staff employees **delegate** (read and run `engineering-routing`). Wait until each receipt is in this conversation before the next employee or hop action. Background Task → **fail**. Receipts missing → do not update hop-done fields, do not notify, do not finish. After receipts and hop actions: update that tree `PROCESS.md` (disk only; **do not git add**). Write `engineering:report` and run sessions `spawn.py --mode notify`. Notify fail → **fail**. Then "When to stop" above.

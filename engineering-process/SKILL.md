@@ -15,7 +15,7 @@ description: >-
 | Call | When | Done |
 |---|---|---|
 | **next** | Only asking for the next ticket | Print one pullable ticket URL |
-| **supervise** | Advance / pull a ticket (default) | Planning: stop after dispatch or follow the latch stop tables after a report/decision. Other department: stop after receipts and hop actions are complete |
+| **supervise** | Advance / pull a ticket (default) | Planning: after 分发 stop; after 回传 / 决策 receipts follow **Stop** tables. Other department: employee receipts in hand, hop actions done, then stop |
 
 Break a rule → **stop or fail**.
 
@@ -23,8 +23,8 @@ Break a rule → **stop or fail**.
 
 1. Always read and run [references/rules.md](references/rules.md).
 2. For **next** or **supervise**, read and run [references/supervise.md](references/supervise.md).
-3. When supervise selects a department hop, read and run [references/hops.md](references/hops.md).
-4. Use [references/templates.md](references/templates.md) for duties, latch fields, stop tables, hop selection, receipts, and graph procedures.
+3. When supervise selects a department hop (3a / 3b / 3c / 3d / 3e), read and run [references/hops.md](references/hops.md).
+4. Use [references/templates.md](references/templates.md) for duties, stop tables, hop selection, review disposition, department resume, and isolation.
 5. When creating, merging, or removing ticket trees, read and run [references/worktree.md](references/worktree.md).
 
-Whenever a department staffs an employee, read and run `engineering-routing`; do not directly wire or invoke lower-level skills. For research or datasheet work on a delivery ticket, staff `datasheet extract` by reading and running `engineering-routing`; that employee reads and runs `engineering-research`, which checks repository materials before the web.
+Whenever a department staffs an employee, read and run `engineering-routing`; do not directly wire or invoke lower-level skills. Research / datasheet reading → role `research` (`engineering-research`), staffable by any department's manage (rules.md 6, 18).
