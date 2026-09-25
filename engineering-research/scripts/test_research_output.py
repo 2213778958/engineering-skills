@@ -104,6 +104,7 @@ class LayoutTests(unittest.TestCase):
     def test_libraries_sit_beside_master_outside_the_repo(self) -> None:
         text = read(LAYOUT)
         self.assertIn("beside `master/` and `worktree/` in the container folder, outside the code repo", text)
+        self.assertIn("holds `<lib>/` and `master/` (or `root/`)", text)
         self.assertIn("Never `git add` a file under `resources/`", text)
 
     def test_wiki_unique_names(self) -> None:

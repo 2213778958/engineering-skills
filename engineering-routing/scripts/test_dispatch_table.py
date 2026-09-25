@@ -56,6 +56,7 @@ class DispatchTableTests(unittest.TestCase):
         self.assertIn("| stay |", rows[0])
         self.assertIn("`grilling`", rows[0])
         self.assertIn("planning / human manage", rows[0])
+        self.assertIn("`engineering-init` plan / migrate in a user-facing conversation", rows[0])
         self.assertIn("`Missing: decision`", rows[0])
         self.assertIn("Unconfirmed decision = `stay`; never delegate or dispatch it", read(SKILL))
 

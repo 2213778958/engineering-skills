@@ -12,7 +12,7 @@ The **planning implement** employee attaches ticket branches as **git worktrees*
 6. Leave-one-out isolation uses one-shot isolation trees; delete immediately after the test; do not keep them until close.
 7. Employee prompt uses that tree's absolute path; first line `cd`. Ticket `git` for this hop also runs in that tree. `planning` implement creates the tree; `delivery` manage pushes from it; `acceptance` implement merges heads and removes trees.
 8. `PROCESS.md`: main checkout keeps `mode` / `contract` / `verify` / `accept` / `merge`. The ticket tree keeps the same latch plus this ticket's `template` / `issue`. When creating a tree, **copy latch fields** from main checkout; do not re-ask `mode`. Do not `git add` `PROCESS.md` / `HANDOFF.md`. `MODELS.md` follows the default branch; do not invent a copy on the tree.
-9. **Drift audit before activating an existing tree.** Before handoff to a department on an EXISTING tree, `planning` implement runs the drift audit at dispatch-prep and includes it in the receipt: `git rev-list --count` both directions (branch vs `origin/<default>`) + `git cherry` to count true-unique commits. behind <= 5 → cheap fast-forward refresh (preserve the disk-only `PROCESS.md`). behind > 5 AND true-unique commits exist → do NOT bulk-merge: recreate the tree from `origin/<default>` and cherry-pick the carried commits one by one, resolving each as its own reviewable commit; carried arbitration receipts attach to the cherry-picked SHAs. behind > 5 AND no true-unique content → recreate the tree fresh; nothing to preserve. This policy does NOT override a standing arbitration preservation verdict by itself: where a verdict mandates preserving specific carried work, cherry-pick satisfies preservation; outright discard only applies when there is nothing unique to preserve.
+9. **Drift audit before activating an existing tree.** Before handoff to a department on an EXISTING tree, `planning` implement runs the drift audit at handoff prep and includes it in the receipt: `git rev-list --count` both directions (branch vs `origin/<default>`) + `git cherry` to count true-unique commits. behind <= 5 → cheap fast-forward refresh (preserve the disk-only `PROCESS.md`). behind > 5 AND true-unique commits exist → do NOT bulk-merge: recreate the tree from `origin/<default>` and cherry-pick the carried commits one by one, resolving each as its own reviewable commit; carried arbitration receipts attach to the cherry-picked SHAs. behind > 5 AND no true-unique content → recreate the tree fresh; nothing to preserve. This policy does NOT override a standing arbitration preservation verdict by itself: where a verdict mandates preserving specific carried work, cherry-pick satisfies preservation; outright discard only applies when there is nothing unique to preserve.
 
 
 ## Key points
@@ -57,7 +57,7 @@ Every supervise start: print `imported`, `master`/`root`, `worktree`.
 
 Isolation trees: `git worktree remove <isolation-tree>` after each leave-one-out tree is tested; then `git worktree prune`.
 
-Implement / acceptance trees: only after **that acceptance merged to the default branch** (or the user said it merged):
+Implement / acceptance trees: only after **that acceptance closed per hops.md 3e** (`check_acceptance.py post` passed, or the squash confirmation):
 
 1. cwd is the tree to delete → `cd` main checkout first.
 2. Each merged `feat/`/`fix/` in heads → `git worktree remove <implement-tree>` (skip if missing).

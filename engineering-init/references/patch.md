@@ -18,6 +18,7 @@ Change the ticket contract after init. Do not redo plan.
 - process `planning` **implement** during **decide**: land an unapplied arbitration verdict; or new need / edit body / edit `blocked-by` / open a fix ticket. Planning **manage** must not run these steps.
 - Fill `verify:` / `accept:` commands
 - Resume a paused ticket
+- Record the person's squash / rebase confirmation on an acceptance
 - Same-ticket department continuation after arbitration sends the ticket back, or unpause resume: resume the original **department manage** session per **Department resume** below. Never a new dispatch / new window, and never the implement employee / subagent.
 
 ## Do not
@@ -36,7 +37,8 @@ Changing contains layer cuts, breaking a uses cycle, migrate, opening a ticket n
 8. Any contract or upstream-code change: comment still-open downstream tickets "pull again `<ref>`". Ticket still blocked (open `blocked-by`) → not pulled; fixing this bug does not bypass another blocker.
 9. Test commands updated → write `verify:` / `accept:`. Do not clear a legal `mode`.
 10. Opened, reopened, closed, or `blocked-by` / `blocking` changed → update GitHub-native relationships only: official `blocked-by` edges, and an open parent sub-issue blocks its children. Do not change contains / uses.
-11. Report: which tickets changed; new bug ticket URL if any; whether `verify` / `accept` updated; new issue numbers and their GitHub-native edges.
+11. Squash / rebase confirm: the person confirmed on the planning window that every patch in the acceptance's `git cherry -v` evidence is upstream → comment on that acceptance `Squash confirmed by the person` with the evidence link. Keep it open; do not close it.
+12. Report: which tickets changed; new bug ticket URL if any; whether `verify` / `accept` updated; new issue numbers and their GitHub-native edges.
 
 ## Department resume (same-ticket continuation)
 

@@ -7,7 +7,7 @@
 ### Product
 
 **engineering-skills**:
-一组开源的智能体工程 skill。第一版七个。个人机器上 Cursor 与 OpenHands 各装一份相同内容。
+一组开源的智能体工程 skill。第一版九个。个人机器上 Cursor 与 OpenHands 各装一份相同内容。
 _Avoid_: skills-for-openhands-automation
 
 **skill**:
@@ -24,6 +24,12 @@ skill 正文全英文；三个入口 skill（engineering-process、engineering-r
 **回传** = report back。
 **开会话** = open a session。
 _Avoid_: 把分发译成 dispatch（dispatch 是路由的派发方式，不是流程术语）
+
+**用户意图**:
+判定条件是用户想做什么，不是用户的原话。正文用英文写意图，原话只放在 `(e.g. …)` 里当例子，可中英混。意图不明 → 能跟用户对话的一方追问，其他人上报 `Missing: decision`。
+
+**验收守卫**:
+`engineering-process/scripts/check_acceptance.py`。`pre` 在开 PR 前查范围内每张实现票的分支都在合并头里、没有范围外提交；`post` 在合并后、关票前查这些分支都已进入默认分支。只用 merge commit 合并。
 
 ### Harness
 

@@ -43,8 +43,8 @@ Two libraries sit beside `master/` and `worktree/` in the container folder, outs
 `research:` and `resources:` resolve the same way (`<lib>` = `research` / `resources`, `<VAR>` = `ENGINEERING_RESEARCH` / `ENGINEERING_RESOURCES`), first hit wins:
 
 1. Environment variable `<VAR>`.
-2. From the current checkout, walk up the parents; the first directory that holds both `master/` and `<lib>/` → its `<lib>/`.
-3. No `<lib>/` yet → the first parent directory that holds `master/`: create `<lib>/` there.
+2. From the current checkout, walk up the parents; the first directory that holds `<lib>/` and `master/` (or `root/`) → its `<lib>/`.
+3. No `<lib>/` yet → the first parent directory that holds `master/` (or `root/`): create `<lib>/` there.
 4. No such parent (a plain clone) and no environment variable → the whole research stops: `Result: fail` + `Missing: <VAR>` (for `resources`, only when a face must store or read a raw file).
 
 ## Manifest
