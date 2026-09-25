@@ -158,14 +158,16 @@ class CheckAcceptanceTests(unittest.TestCase):
         self.assertEqual(code, 0, out)
         self.assertIn("REVIEW merge", out)
 
-    def test_pre_fails_when_local_head_differs_from_remote(self) -> None:
+    def test_pre_notes_a_stale_remote_merge_head(self) -> None:
+        self.repo.git("switch", "-q", "-c", "feat/3-c", "main")
+        self.repo.commit("c1")
+        self.repo.publish("feat/3-c")
         self.repo.git("switch", "-q", "-c", "merge/9", "fix/2-b")
         self.repo.publish("merge/9")
-        self.repo.git("merge", "-q", "--no-ff", "-m", "noop", "feat/1-a", "--allow-unrelated-histories")
-        self.repo.commit("local-only")
-        code, out = run(self.repo, "pre", "--head", "merge/9", "--tickets", "1", "2")
-        self.assertEqual(code, 1)
-        self.assertIn("head: merge/9 differs from origin/merge/9", out)
+        self.repo.git("merge", "-q", "--no-ff", "-m", "merge feat/3-c", "feat/3-c")
+        code, out = run(self.repo, "pre", "--head", "merge/9", "--tickets", "1", "2", "3")
+        self.assertEqual(code, 0, out)
+        self.assertIn("note head: origin/merge/9 is stale", out)
 
     def test_default_branch_comes_from_remote_head(self) -> None:
         self.repo.git("update-ref", "refs/remotes/origin/trunk", "main")

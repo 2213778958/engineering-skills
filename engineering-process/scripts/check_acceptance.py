@@ -7,7 +7,11 @@ the merge head. Every non-merge commit the head adds over the default branch
 belongs to a ticket in scope: its owner is the lowest ticket branch that
 contains it, so a scope branch stacked on an out-of-scope branch still fails.
 A clean merge commit must equal the re-merge of its parents; a merge that
-resolved conflicts is listed as REVIEW for the acceptance review.
+resolved conflicts is listed as REVIEW for the acceptance review. Needs git 2.38+
+(``merge-tree --write-tree``). Owner ties go to the lower ticket number; a stale
+remote ticket branch cut from an earlier commit of a scope branch can claim
+those commits, so delete abandoned ticket branches. A ticket whose branch is
+gone cannot own commits in ``pre``.
 
 ``post``: after the PR merged, before closing the acceptance. Every ticket
 branch is an ancestor of ``<remote>/<default>``. ``--tickets <n>=<sha>`` checks
@@ -110,7 +114,7 @@ class Checker:
         if git(self.repo, "rev-parse", "--verify", "--quiet", remote_head).returncode != 0:
             return
         if out(self.repo, "rev-parse", head) != out(self.repo, "rev-parse", remote_head):
-            self.fail(f"head: {head} differs from {remote_head}")
+            print(f"note head: {remote_head} is stale; manage force-pushes {head} after pre passes")
 
     def scope(self, head: str, scope: set[int]) -> None:
         added = rev_set(self.repo, "--no-merges", f"{self.base}..{head}")
@@ -134,7 +138,10 @@ class Checker:
                 print(f"REVIEW merge {subject(self.repo, sha)}: {len(parents)} parents; review `git show --cc {sha[:12]}`")
                 continue
             remerge = git(self.repo, "merge-tree", "--write-tree", *parents)
-            if remerge.returncode != 0:
+            if remerge.returncode > 1:
+                self.fail("merge-tree unavailable (git 2.38+ required)")
+                return
+            if remerge.returncode == 1:
                 print(f"REVIEW merge {subject(self.repo, sha)}: resolved conflicts; review `git show --cc {sha[:12]}`")
             elif remerge.stdout.split()[0] == out(self.repo, "rev-parse", f"{sha}^{{tree}}"):
                 print(f"ok   merge {subject(self.repo, sha)}: equals the re-merge of its parents")
