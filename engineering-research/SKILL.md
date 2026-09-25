@@ -45,11 +45,13 @@ Source order — the same for every face:
 
 1. This repo's library: `docs/`, `docs/adr/`, `AGENTS.md`, `CONTEXT.md`, then the module tree (code, comments, existing conventions).
 2. The research library: `research:Home.md` (already researched → reuse and extend that directory); the `resources/` library through `research:resources.md` (a listed resource missing locally → fetch it again from its URL and check the hash).
-3. The internet: only the parts 1–2 do not answer. Name each source. A downloaded raw file goes into `resources/`; its manifest row goes into the face receipt.
+3. The internet: only the parts 1–2 do not answer. Name each source.
+
+A raw file found in the repo or downloaded (datasheet PDF, asset) is copied into `resources/` (not removed from git) and its manifest row goes into the face receipt. The manage window never opens a raw file; it reads findings md only.
 
 ## Faces
 
-A face is one question the requirement depends on. Typical faces: `approach` (prior solutions), `assets` (reusable materials, license, format), `options` (technical selection), `chip-<part>` (registers / interfaces from a datasheet), `facts` (repo facts). Name others freely; one findings file per face.
+A face is one question the requirement depends on. Typical faces: `approach` (prior solutions), `assets` (reusable materials, license, format), `options` (technical selection), `chip-<part>` (registers / interfaces from a datasheet PDF under `resources:datasheets/`; findings list base addresses, offsets, bitfields, timing and pin constants, each with PDF file name + page or section — the input of [references/headers.md](references/headers.md), which the delivery implement follows to write headers), `facts` (repo facts). Name others freely; one findings file per face.
 
 A face depends on another when its search needs that face's conclusion (e.g. `assets` needs the engine and art style from `approach`). Write the dependencies before delegating.
 
@@ -65,8 +67,4 @@ Every subagent prompt starts with the employee prompt fields of `engineering-pro
 6. Check: every claim cites a named source; repo-library-first is visible; every `resources:` path has a manifest row. Web-only answer with a repo hit available → fail, then run the face again and rerun synthesis.
 7. Report: entry `research:` path + faces + sync result + subagent names.
 
-## Chip-interface face
-
-The datasheet PDF goes to `resources:datasheets/`; find it by the caller's hint first, then the repo's `.pdf` files, then the web. A PDF found in the repo is copied into `resources:datasheets/`; its manifest row goes into the face receipt; it is not removed from git here. The reader subagent writes `<slug>--chip-<part>.md`: base addresses, register offsets, bitfields, timing and pin constants the requirement needs — each with PDF file name + page or section. This conversation only reads the findings md; it never opens the PDF.
-
-Header files are written downstream by the delivery implement from that findings md, per [references/headers.md](references/headers.md). The implement prompt names the `research:` path as read-only input.
+Downstream implement prompts name the `research:` entry path as read-only input.

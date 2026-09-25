@@ -53,6 +53,8 @@ class ResearchContractTests(unittest.TestCase):
     def test_skill_splits_faces_and_synthesizes(self) -> None:
         text = read(SKILL)
         self.assertIn("## Faces", text)
+        self.assertNotIn("## Chip-interface face", text)
+        self.assertIn("the input of [references/headers.md](references/headers.md)", text)
         self.assertIn("**Synthesize.**", text)
         self.assertIn("(≤3)", text)
 
