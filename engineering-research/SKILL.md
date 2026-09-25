@@ -19,7 +19,7 @@ description: >-
 
 One **research** employee: one requirement in, one **research directory** out. Every call delivers the same shape — `research:<YYYY-MM>-<slug>/<slug>.md` in the external `research/` library, never inside the code repo. Downstream agents enter from that md; header files, asset imports and code are their work, not research's. The manage that staffs research runs these steps; every file under `research/` is written by a delegated subagent, never by the manage window.
 
-Research is an employee role, not a department: its workers (face and synthesis subagents) are employees (Task); the steps run in the staffing manage's window. Do not write drivers or headers, do not open issues, do not paste PDF body into this conversation. Do not open a child conversation. Staffed by the **delivery** (default: its implement ticket), **acceptance** or **planning** manage (planning: during 决策, as input to planning). **human** and **arbitration** do not staff research.
+Research is an employee role, not a department: its workers (face and synthesis subagents) are employees (Task); the steps run in the staffing manage's window. Do not write drivers or headers, do not open issues, do not paste PDF body into this conversation. Do not open a child conversation. Staffed by the **delivery** (default: its implement ticket), **acceptance** or **planning** manage (planning: while it decides, as input to planning). **human** and **arbitration** do not staff research.
 
 Delegate: read and run `engineering-routing` (role `research`). Before delegating, check `../engineering-routing/references/routing-table.md`: only an `enabled` row is routable; a `registered` row stops at the gate (enablement is a patch ticket). Repo `MODELS.md` target wins if present; ignore a `dispatch` link. Do not read `openhands-sessions`, do not copy POST, do not call Task directly.
 
@@ -70,7 +70,7 @@ A face depends on another when its search needs that face's conclusion (e.g. `as
 
 ## Steps
 
-Every subagent prompt starts with the employee prompt fields of `engineering-process` rules.md 10: ticket-tree `cd` path first (planning-staffed: `master/`), ticket URL (planning-staffed: the ticket under 决策, else `none`), allowlist, the fixed repo-docs line.
+Every subagent prompt starts with the employee prompt fields of `engineering-process` rules.md 10: ticket-tree `cd` path first (planning-staffed: `master/`), ticket URL (planning-staffed: the ticket being decided, else `none`), allowlist, the fixed repo-docs line.
 
 1. Check Inputs. Resolve the research root. Read `research:Home.md`; reuse an existing directory for the same topic, else name a new one per layout.md.
 2. Split the requirement into faces: each face's question, its dependencies, its findings path. Keep this plan in this conversation; it goes into every face prompt and into the synthesis prompt.

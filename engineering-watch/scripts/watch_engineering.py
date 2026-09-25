@@ -138,7 +138,7 @@ def finalization_failed(final_text: str | None) -> bool:
         final_text: Child ``final_response`` text (None when unavailable).
 
     Returns:
-        True when the text carries a push / notify / 收尾 failure marker.
+        True when the text carries a push / notify / finalization failure marker.
     """
     if not final_text:
         return False

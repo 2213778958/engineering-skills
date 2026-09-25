@@ -152,7 +152,7 @@ class IdentityTests(unittest.TestCase):
             "ticket": "#24",
             "hop": "done",
             "receipts": "delivery implement=pass",
-            "suggested next": "分发 acceptance #24",
+            "suggested next": "hand off acceptance #24",
         }
         fields.update(overrides)
         return "engineering:report\n" + "\n".join(
@@ -334,7 +334,7 @@ class MainApiPathTests(unittest.TestCase):
             [
                 "hop: done",
                 "receipts: delivery implement=pass",
-                "suggested next: 分发 acceptance #24",
+                "suggested next: hand off acceptance #24",
             ]
         )
         return "\n".join(lines)

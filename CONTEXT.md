@@ -13,6 +13,18 @@ _Avoid_: skills-for-openhands-automation
 **skill**:
 一个可拷贝的目录，入口是 SKILL.md。
 
+### Process terms
+
+skill 正文全英文；三个入口 skill（engineering-process、engineering-routing、engineering-init）各有一张 `## Terms` 表，中文只留在 frontmatter 触发词和引用的用户原话里。
+
+**分发** = hand off（规划部门把一张票交给另一个部门；名词 handoff）。
+**决策** = decide（规划部门自己的 hop）。
+**推进** = advance。
+**职责表** = duty table。
+**回传** = report back。
+**开会话** = open a session。
+_Avoid_: 把分发译成 dispatch（dispatch 是路由的派发方式，不是流程术语）
+
 ### Harness
 
 **sessions**:

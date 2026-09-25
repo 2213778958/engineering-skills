@@ -92,7 +92,7 @@ class ResearchContractTests(unittest.TestCase):
     def test_subagent_prompts_carry_rules_10_fields(self) -> None:
         text = read(SKILL)
         self.assertIn("ticket-tree `cd` path first (planning-staffed: `master/`)", text)
-        self.assertIn("(planning-staffed: the ticket under 决策, else `none`)", text)
+        self.assertIn("(planning-staffed: the ticket being decided, else `none`)", text)
 
     def test_manage_does_not_write_research_files(self) -> None:
         text = read(SKILL)

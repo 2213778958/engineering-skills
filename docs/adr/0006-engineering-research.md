@@ -27,7 +27,7 @@ skill performs general research — it delivers one research document — and
 datasheet extraction becomes one mode of it, still writing the same hardware
 header files under `engineering-research/references/`. The `datasheet-headers`
 directory is deleted. Employee role names in `engineering-process` and the
-职责表 change from `datasheet extract` to `research`, and `engineering-routing`
+duty table change from `datasheet extract` to `research`, and `engineering-routing`
 routes both research and datasheet tasks to `engineering-research`.
 
 Source order is fixed for every mode: the repo's own library first — `docs/`,

@@ -29,6 +29,7 @@ STAGES = (
     ),
     ("research", (sys.executable, "engineering-research/scripts/test_research_output.py")),
     ("dispatch", (sys.executable, "engineering-routing/scripts/test_dispatch_table.py")),
+    ("english", (sys.executable, "engineering-init/scripts/test_english_body.py")),
 )
 TIMEOUT_EXIT_CODE = 124
 
@@ -166,6 +167,8 @@ def main() -> int:
                         help="research stage timeout (seconds)")
     parser.add_argument("--dispatch-timeout", type=_positive_timeout,
                         help="dispatch stage timeout (seconds)")
+    parser.add_argument("--english-timeout", type=_positive_timeout,
+                        help="english stage timeout (seconds)")
     args = parser.parse_args()
     stage_timeouts = {
         "watch": args.watch_timeout,
@@ -181,6 +184,7 @@ def main() -> int:
         "engineering-watch": args.engineering_watch_timeout,
         "research": args.research_timeout,
         "dispatch": args.dispatch_timeout,
+        "english": args.english_timeout,
     }
     return run_verification({
         name: args.timeout if timeout is None else timeout

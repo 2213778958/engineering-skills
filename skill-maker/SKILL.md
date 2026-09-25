@@ -33,7 +33,7 @@ Read this when creating or editing a skill. Write operations, not reasons.
 - User-supplied sentences go in verbatim. Do not rewrite them.
 - Missing decision → read and run `engineering-routing` for the decision. Missing fact → look it up. Do not paste manuals into the entry skill.
 - Repo already has engineering conventions → follow them. Else write defaults and mark them as defaults.
-- Process / planning behavior (planning is a **department**; **分发** / **决策** / **回传**; duties **职责表**) → read and run `engineering-process`. Do not copy that behavior into a product skill.
+- Process / planning behavior (planning is a **department**; **hand off** / **decide** / **report back**; duties **duty table**) → read and run `engineering-process`. Do not copy that behavior into a product skill.
 - Convention-file and latch behavior (`AGENTS.md` / `CONTEXT.md` / `docs/adr/` / `PROCESS.md` / `MODELS.md`; ask `mode` once) → read and run `engineering-init`. Do not copy that behavior into a product skill.
 - `SKILL.md` < 500 lines. Paths use forward slashes (`scripts/foo.py`).
 

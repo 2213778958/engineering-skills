@@ -12,7 +12,7 @@ A receipt JSON containing `conversation_id` or `id` is success; do not re-POST. 
 
 **POST `worktree`** = server clone switch. Default `false`. `true` only if the user asked to leave this project for a new clone (often under `conversation_worktree_root`).
 
-Canvas sidebar groups by imported `working_dir` **and** `tags.clientsource=agentcanvas`. API POST without that tag lands under 无工作区 even when `working_dir` matches. `spawn.py` copies this conversation's tags and sets `clientsource`. Child identity is GET `id`.
+Canvas sidebar groups by imported `working_dir` **and** `tags.clientsource=agentcanvas`. API POST without that tag lands under "无工作区" even when `working_dir` matches. `spawn.py` copies this conversation's tags and sets `clientsource`. Child identity is GET `id`.
 
 A worktree/checkout path is a different workspace: the child lands outside this project, and `parent_conversation_id` returns 422.
 

@@ -15,9 +15,20 @@ description: >-
 | Call | When | Done |
 |---|---|---|
 | **next** | Only asking for the next ticket | Print one pullable ticket URL |
-| **supervise** | Advance / pull a ticket (default) | Planning: after 分发 stop; after 回传 / 决策 receipts follow **Stop** tables. Other department: employee receipts in hand, hop actions done, then stop |
+| **supervise** | Advance / pull a ticket (default) | Planning: after handoff stop; after report back / decide receipts follow **Stop** tables. Other department: employee receipts in hand, hop actions done, then stop |
 
 Break a rule → **stop or fail**.
+
+## Terms
+
+| 中文 | English |
+|---|---|
+| 分发 | hand off |
+| 决策 | decide |
+| 推进 | advance |
+| 职责表 | duty table |
+| 回传 | report back |
+| 开会话 | open a session |
 
 ## Read and run
 

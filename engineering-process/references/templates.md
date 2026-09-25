@@ -1,10 +1,10 @@
 # Templates
 
-**Department** `template` on the ticket tree picks the hop. Duties: this **职责表** only. Five departments × four employee kinds. Research is not a column (`engineering-research`); the delivery, acceptance or planning manage may staff it; human and arbitration do not. Never a child conversation for an employee.
+**Department** `template` on the ticket tree picks the hop. Duties: this **duty table** only. Five departments × four employee kinds. Research is not a column (`engineering-research`); the delivery, acceptance or planning manage may staff it; human and arbitration do not. Never a child conversation for an employee.
 
 **manage** = this department window. Not a Task. **implement** / **review** / **verify** = **delegate**. Table "yes" = that manage must staff that role. Manage must not do implement / review / verify work.
 
-## 职责表
+## Duty table
 
 | | manage | implement | review | verify |
 |---|---|---|---|---|
@@ -16,26 +16,26 @@
 
 | Department | manage | implement | review | verify |
 |---|---|---|---|---|
-| **planning** | talk to the user; this conversation has not confirmed yet (not 回传): write missing `until: none`, print `mode` / `until` / `merge` / `verify` / `accept` + MODELS, wait for confirm, then 推进; 分发 other departments; staff this department's employees and `research` (planning input); collect receipts; after 分发 stop; after 回传 / 决策 receipts follow **Stop** tables | 决策 technical: `engineering-init` **patch**, apply verdict, pause/resume, open bug tickets, comment pull again; create the ticket tree before 分发 | review the planning implement output | — |
+| **planning** | talk to the user; this conversation has not confirmed yet (not report back): write missing `until: none`, print `mode` / `until` / `merge` / `verify` / `accept` + MODELS, wait for confirm, then advance; hand off to other departments; staff this department's employees and `research` (planning input); collect receipts; after handoff stop; after report back / decide receipts follow **Stop** tables | decide technical work: `engineering-init` **patch**, apply verdict, pause/resume, open bug tickets, comment pull again; create the ticket tree before handoff | review the planning implement output | — |
 | **delivery** | staff employees; after receipts `git push` and close this implement ticket; sessions **notify** | product code + `git commit` (no push) | review the implementation | run `verify:` |
 | **acceptance** | staff employees; after receipts `gh pr` / honor `merge:`; close this acceptance; sessions **notify** | merge `engineering:heads`: create `merge/<n>` if needed, merge heads, worktree add/remove per worktree.md | review merge / PR scope | run `accept:` (`none` may still open a PR) |
-| **arbitration** | staff employees; after receipts write the verdict comment; sessions **notify** (next hop is 决策) | reproduce + opinion; no product-code edits | review the opinion | run `verify:`; check whether reproduction holds |
+| **arbitration** | staff employees; after receipts write the verdict comment; sessions **notify** (next hop is decide) | reproduce + opinion; no product-code edits | review the opinion | run `verify:`; check whether reproduction holds |
 | **human** | talk to the user: how to test and accept this gate, and help them do it; write comments; pass → close this gate/sink; fail → reopen implement; sessions **notify** | — | — | — |
 
 ## Rules
 
-- Employee kinds follow this 职责表. Research is not a column: when needed, run `engineering-research` (role `research`) on the ticket whose manage needs it — typically the **delivery** department's implement ticket; the acceptance or planning manage may also staff it; human and arbitration do not. Do not open a separate extract ticket.
+- Employee kinds follow this duty table. Research is not a column: when needed, run `engineering-research` (role `research`) on the ticket whose manage needs it — typically the **delivery** department's implement ticket; the acceptance or planning manage may also staff it; human and arbitration do not. Do not open a separate extract ticket.
 - Before staffing, take the target from the `MODELS.md` employee cell (department × duty), then `engineering-routing`. Ignore a `dispatch` link on employee cells. Do not pick a subagent outside the catalog unless the user named one. Do not rewrite delegate to a child conversation. Wait until each employee receipt is in the department window. Background Task → **fail**. Launching Task is not hop finished.
-- 决策 technical work only by `planning` **implement**. From arbitration, apply the verdict; do not change it. Planning **manage** staffs that implement + review; does not run patch. Open/merge PR only by `acceptance` **manage**, and only if the ticket body has `engineering:pr`. Product-code edits only by the `delivery` implement **employee**. Heads merge / worktree git only by `acceptance` implement.
+- Decide technical work only by `planning` **implement**. From arbitration, apply the verdict; do not change it. Planning **manage** staffs that implement + review; does not run patch. Open/merge PR only by `acceptance` **manage**, and only if the ticket body has `engineering:pr`. Product-code edits only by the `delivery` implement **employee**. Heads merge / worktree git only by `acceptance` implement.
 - Arbitration: implement employee reproduces + opinion; review reviews the opinion; verify checks reproduction if a command exists. The verdict is written by the arbitration **department**. planning does not judge.
-- Enter arbitration only on the paths in `rules.md` Key points and **Review disposition** below. Delivery department reports those paths; planning **分发** arbitration. Delivery verify is not a trigger and has no `Challenge` field.
+- Enter arbitration only on the paths in `rules.md` Key points and **Review disposition** below. Delivery department reports those paths; planning **hands off** to arbitration. Delivery verify is not a trigger and has no `Challenge` field.
 - `git push` (code repo) only the delivery **manage**, and only after delivery verify passed. The research synthesis subagent may push the external `research/` repo only (rules.md 10).
 - Unblock = close upstream tickets. Do not unblock with `remove-blocked-by`.
-- worktrees: `planning` implement creates them before 分发; `acceptance` implement removes after merge. Both semi-auto and full-auto. Under the Canvas container `worktree/`. See [worktree.md](worktree.md). Do not POST `worktree: true`. Do not POST a tree path as `working_dir`.
-- After a 分发 → **stop**. Do not watch. After 回传 / 决策 receipts → **Stop** tables. After a **close**: first a ticket that close unblocked (`human` then acceptance); none → hop table. Same class → smallest issue number.
+- worktrees: `planning` implement creates them before handoff; `acceptance` implement removes after merge. Both semi-auto and full-auto. Under the Canvas container `worktree/`. See [worktree.md](worktree.md). Do not POST `worktree: true`. Do not POST a tree path as `working_dir`.
+- After a handoff → **stop**. Do not watch. After report back / decide receipts → **Stop** tables. After a **close**: first a ticket that close unblocked (`human` then acceptance); none → hop table. Same class → smallest issue number.
 - Close or reopen actions write no graph. Ticket order comes from GitHub-native relationships only (`blockedBy` + open sub-issue parent blocks its children). Human review fail: only the **human** department reopens the implement ticket (3a).
-- Parallel = another 分发 (another 推进 on the planning department) or another planning department window. Not two tickets in one tree `PROCESS.md`.
-- Do not 分发 downstream while upstream still blocks. Named tickets neither.
+- Parallel = another handoff (another advance on the planning department) or another planning department window. Not two tickets in one tree `PROCESS.md`.
+- Do not hand off downstream while upstream still blocks. Named tickets neither.
 
 ## Review disposition
 
@@ -91,7 +91,7 @@ A malformed disposition or findings without all four fields are incomplete recei
 
 ## Department resume (same-ticket continuation)
 
-Same-ticket continuation = the next hop is a department that already has a dispatch child for this ticket (typical after arbitration sends the ticket back, or after a human send-back reopens the implement ticket). That continuation **resumes the original department manage conversation**. It is not a new 分发 and does not create a window.
+Same-ticket continuation = the next hop is a department that already has a dispatch child for this ticket (typical after arbitration sends the ticket back, or after a human send-back reopens the implement ticket). That continuation **resumes the original department manage conversation**. It is not a new handoff and does not create a window.
 
 Planning manage resumes via sessions only:
 
@@ -99,7 +99,7 @@ Planning manage resumes via sessions only:
 python <sessions-skill>/scripts/spawn.py --mode resume --target-id <uuid> --ticket #<n> --request-id <id>
 ```
 
-- `--target-id` is the exact conversation id recorded at 分发 (dispatch report `id` / `url`). Never infer the continuation target from an old conversation id found elsewhere. `--ticket` + `--request-id` carry the stable request identity; when reconciling one intentional continuation, reuse the same `--request-id`.
+- `--target-id` is the exact conversation id recorded at handoff (dispatch report `id` / `url`). Never infer the continuation target from an old conversation id found elsewhere. `--ticket` + `--request-id` carry the stable request identity; when reconciling one intentional continuation, reuse the same `--request-id`.
 - Do not `--mode dispatch` and do not `--mode open` the same department on the same ticket again; redispatch or a new department window → **fail**. The resume target is the department **manage** window (the dispatch child carrying that department tag), never an implement / review / verify subagent. Employees are Task delegate and have no conversation window to resume; resuming or reusing an employee conversation for department continuation → **fail**.
 - Receipts: `accepted` = the continuation operation was accepted only, not department work completion; do not finish the hop, do not watch. `unknown` = unproven (timeout or lost response): reconcile with the same `--ticket` + `--request-id`; a timeout or lost response is unknown-until-reconciled, not a retry trigger — no blind retry, no redispatch on timeout. `rejected` = stop with the receipt evidence; no automatic replacement dispatch and no force bypass.
 - Preserve commits, accepted fixes, existing history, and valid receipts across the resume. Rerun only the hops the arbitration verdict invalidated (the disputed scope); do not re-run accepted independent findings or already verified hops.
@@ -109,15 +109,15 @@ python <sessions-skill>/scripts/spawn.py --mode resume --target-id <uuid> --tick
 
 ## Key points: what each hop does
 
-Follow the **职责表**. Hop `template` = that department's **manage** window.
+Follow the **duty table**. Hop `template` = that department's **manage** window.
 
 | template | Must not |
 |---|---|
-| **planning** | product code; open/merge PR; full plan; 分发 before 决策 receipts; follow to fix upstream; staff delivery/acceptance/arbitration employees (research is allowed); manage running patch |
-| **delivery** | open/merge PR; extra research ticket; same-ticket switch to acceptance; 分发 another department; manage writing product code |
-| **acceptance** | PR on an implement ticket; manage merging heads or worktrees; 分发 another department |
+| **planning** | product code; open/merge PR; full plan; hand off before decide receipts; follow to fix upstream; staff delivery/acceptance/arbitration employees (research is allowed); manage running patch |
+| **delivery** | open/merge PR; extra research ticket; same-ticket switch to acceptance; hand off to another department; manage writing product code |
+| **acceptance** | PR on an implement ticket; manage merging heads or worktrees; hand off to another department |
 | **arbitration** | debug; edit product code; open/merge PR; nest arbitration; apply the verdict (planning implement); manage writing the opinion |
-| **human** | change contract; edit code; open/merge PR; staff implement/review/verify; treat 推进 as entry; notify before pass/fail |
+| **human** | change contract; edit code; open/merge PR; staff implement/review/verify; treat "推进" as entry; notify before pass/fail |
 
 ## Stop (these two tables are source of truth)
 
@@ -127,41 +127,41 @@ Hard stop. `until` must not skip a row.
 |---|---|
 | human window waiting pass/fail | that human window |
 | `merge: human` PR opened | `wait-merge` |
-| change-contract, person must confirm | planning 决策; wait for the person |
+| change-contract, person must confirm | planning decide; wait for the person |
 | isolation unclear | this acceptance; give the table to the person |
 | no pullable ticket | planning |
 
 `mode` × `until`. Follow this table. A hard-stop row wins when both match.
 
-`until` reached: `#n` → that ticket's department hop reported (`done` / `send-back` / `blocked` / `need-arbitration` / `wait-merge`); do not 分发 a later ticket; still blocked → do upstream first. Department name → the next hop of that department reported.
+`until` reached: `#n` → that ticket's department hop reported (`done` / `send-back` / `blocked` / `need-arbitration` / `wait-merge`); do not hand off a later ticket; still blocked → do upstream first. Department name → the next hop of that department reported.
 
-| mode | until | After 回传 | After 决策 receipts |
+| mode | until | After report back | After decide receipts |
 |---|---|---|---|
-| **manual** | `none` | print; stop; no 分发 | print next; stop; no 分发 |
-| **manual** | `#n` or department | until not reached and no hard stop → one 推进 | next hop is 分发 → 分发 once this turn; next hop is 决策 → this turn stop (print); chain not dead |
-| **auto** | `none` | one 推进 until a hard stop | next hop is 分发 → 分发 once this turn; next hop is 决策 → this turn stop (print) |
+| **manual** | `none` | print; stop; no hand off | print next; stop; no hand off |
+| **manual** | `#n` or department | until not reached and no hard stop → one advance | next hop is hand off → hand off once this turn; next hop is decide → this turn stop (print); chain not dead |
+| **auto** | `none` | one advance until a hard stop | next hop is hand off → hand off once this turn; next hop is decide → this turn stop (print) |
 | **auto** | `#n` or department | same as auto `none`, and stop when until reached | same, and stop when until reached |
 
 Missing `until:` → write `until: none`. Planning **manage** writes `until` only when the user names a stop; writes `none` when the user clears it. Session start prints the current value; do not invent.
 
-Do not switch delivery to acceptance on the same ticket. Do not skip `ready-for-human`. One 分发 = one department hop. Same class of pullable tickets → smallest issue number.
+Do not switch delivery to acceptance on the same ticket. Do not skip `ready-for-human`. One handoff = one department hop. Same class of pullable tickets → smallest issue number.
 
 ## Steps: hop from the ticket
 
-Set this on the **ticket tree** when the planning department 分发, or run 决策 when the hop is `planning`. Not the conversation entry.
+Set this on the **ticket tree** when the planning department hands off, or run decide when the hop is `planning`. Not the conversation entry.
 
 Tree already has `issue:` = this open ticket and `template:` is a department hop → use that hop. Do not recompute.
 
 | See | Hop | Planning department does |
 |---|---|---|
-| tree hop already set (ticket still open) | that `template:` | **分发** that other department. `planning` leftover on a tree → **决策**, do not spawn |
-| plan / split tickets / fill graphs / change contract / fill tests / resume pause / unapplied verdict | `planning` | **决策** (this department's hop). Do not spawn |
-| implement ticket `ready-for-agent` (no `engineering:pr`) | `delivery` | **分发** delivery department |
-| acceptance ticket `ready-for-agent` (has `engineering:pr`) and unblocked | `acceptance` | **分发** acceptance department |
-| `ready-for-human` | `human` | **分发** human department |
-| disputed review finding after disposition/rework, explicit contract/upstream challenge, or user challenge | `arbitration` | **分发** arbitration department |
+| tree hop already set (ticket still open) | that `template:` | **hand off** that other department. `planning` leftover on a tree → **decide**, do not spawn |
+| plan / split tickets / fill graphs / change contract / fill tests / resume pause / unapplied verdict | `planning` | **decide** (this department's hop). Do not spawn |
+| implement ticket `ready-for-agent` (no `engineering:pr`) | `delivery` | **hand off** delivery department |
+| acceptance ticket `ready-for-agent` (has `engineering:pr`) and unblocked | `acceptance` | **hand off** acceptance department |
+| `ready-for-human` | `human` | **hand off** human department |
+| disputed review finding after disposition/rework, explicit contract/upstream challenge, or user challenge | `arbitration` | **hand off** arbitration department |
 
-Same ticket and the target department already has a dispatch child → that is a continuation, not a new 分发: **Department resume** above.
+Same ticket and the target department already has a dispatch child → that is a continuation, not a new handoff: **Department resume** above.
 
 ## Test intensity
 
@@ -184,10 +184,10 @@ Default 1 source 1 sink; multiple only if the user says so.
 ## Upstream bug
 
 1. The delivery department that found it only goes as far as reporting arbitration.
-2. `planning` **implement** during 决策 pauses that downstream (body `engineering:paused-by #<bug-acceptance>`, `blocked-by` the last acceptance of the bugfix), opens bug implement+acceptance, notifies pull again. Planning manage then stops.
-3. A later 分发 sends the bugfix to a delivery department (not the one that found it).
-4. Bugfix acceptance closed: that acceptance department stops; report asking planning to 决策 resume.
-5. `planning` implement during 决策 clears the pause, comments pull again. Planning manage does not 分发 the downstream in that 决策 turn.
+2. `planning` **implement** during decide pauses that downstream (body `engineering:paused-by #<bug-acceptance>`, `blocked-by` the last acceptance of the bugfix), opens bug implement+acceptance, notifies pull again. Planning manage then stops.
+3. A later handoff sends the bugfix to a delivery department (not the one that found it).
+4. Bugfix acceptance closed: that acceptance department stops; report asking planning to decide resume.
+5. `planning` implement during decide clears the pause, comments pull again. Planning manage does not hand off the downstream in that decide turn.
 
 ## Acceptance-fail isolation (leave-one-out)
 

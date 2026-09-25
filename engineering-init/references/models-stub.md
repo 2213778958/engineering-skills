@@ -7,21 +7,21 @@ Landing repo `docs/agents/MODELS.md`. Do not write the origin repo. Do not put t
 - Target names must resolve via `engineering-sessions` **list** (it runs the adapter named by the `sessions:` latch; default `openhands-sessions`). Do not copy POST. Do not invent catalog ids.
 - Role → task type only from the `engineering-routing` dispatch table. Routable skills: `enabled` rows of `engineering-routing/references/routing-table.md`; a `registered` row is not routable. Do not invent a third task-type table here.
 - Write the routing **link as the table says**. Planning manage cell is `stay`. Other department manage cells are `dispatch`. Employee cells are `delegate`. Do not rewrite `delegate` to `dispatch`. Do not write `delegate` on a manage cell.
-- Planning is a **department**. Conversation windows. Planning department `stay`. 分发 another department (`delivery` / `acceptance` / `arbitration` / `human`) `dispatch`. Target for stay = **this conversation's model** (ACP is the Cursor bridge, not the role; grok via ACP is allowed). Target for dispatch = a spawnable profile from sessions **list** (same family/effort as this conversation when possible).
-- **Employee** cells: `delegate` + a resolvable target. Those are not conversation windows. Department **manage** cells are the seat. MODELS must not write `dispatch` on implement / review / verify / research. Duties: process templates.md **职责表**.
+- Planning is a **department**. Conversation windows. Planning department `stay`. Hand off to another department (`delivery` / `acceptance` / `arbitration` / `human`) `dispatch`. Target for stay = **this conversation's model** (ACP is the Cursor bridge, not the role; grok via ACP is allowed). Target for dispatch = a spawnable profile from sessions **list** (same family/effort as this conversation when possible).
+- **Employee** cells: `delegate` + a resolvable target. Those are not conversation windows. Department **manage** cells are the seat. MODELS must not write `dispatch` on implement / review / verify / research. Duties: process templates.md **duty table**.
 - User named a model / profile → follow the user for stay/dispatch windows only. Employee staffing still delegate.
 - `confirmed: no`: written, reported, user has not said to use this table. `yes`: user said use it or leave it.
-- process does not refill the whole table unless the user changes a cell. Existing file has `supervisor` and no `planning` → process treats that as planning manage `stay`. Missing other-department manage cell → process 分发 uses this conversation's spawnable profile.
+- process does not refill the whole table unless the user changes a cell. Existing file has `supervisor` and no `planning` → process treats that as planning manage `stay`. Missing other-department manage cell → process hand off uses this conversation's spawnable profile.
 
 ## Key points: role → routing task type
 
 | Role | Layer | routing task type |
 |---|---|---|
-| planning | department (manage) | Planning manage 决策 (staff only; no patch in this window) |
-| delivery | department (manage) | Planning department 分发 another department |
-| acceptance | department (manage) | Planning department 分发 another department |
-| arbitration | department (manage) | Planning department 分发 another department |
-| human | department (manage) | Planning department 分发 another department |
+| planning | department (manage) | Planning manage decide (staff only; no patch in this window) |
+| delivery | department (manage) | Planning department hands off to another department |
+| acceptance | department (manage) | Planning department hands off to another department |
+| arbitration | department (manage) | Planning department hands off to another department |
+| human | department (manage) | Planning department hands off to another department |
 | planning implement | employee | Planning implement (patch; no product code) |
 | planning review | employee | Read-only search / locate files and symbols |
 | delivery implement | employee | Long-running implementation that writes files |
@@ -38,13 +38,13 @@ Landing repo `docs/agents/MODELS.md`. Do not write the origin repo. Do not put t
 ## Steps: fill at plan close-out
 
 1. Read and run `engineering-sessions` **list** (no POST).
-2. For each cell: write a resolvable target. Planning manage: this conversation's model (ACP bridge allowed). Other manage cells: spawnable profile. Employee cells: catalog target. `—` = 职责表 no. Do not write `dispatch` on employee cells. Cannot resolve a name → read and run `engineering-routing` for the decision on that cell; do not invent a name.
+2. For each cell: write a resolvable target. Planning manage: this conversation's model (ACP bridge allowed). Other manage cells: spawnable profile. Employee cells: catalog target. `—` = duty table no. Do not write `dispatch` on employee cells. Cannot resolve a name → read and run `engineering-routing` for the decision on that cell; do not invent a name.
 3. Write this file. `confirmed: no`.
 4. Print the whole table; ask if the user wants changes. User says use it / no change → `confirmed: yes`. User changes a cell → write then `yes`.
 
 ## Steps: file contents
 
-`MODELS.md` is one n×m grid: rows = departments, columns = `manage` / `implement` / `review` / `verify`. Same axes as the 职责表. Cell = target. `—` = 职责表 no. Research is not a department column; keep a 1×1 sidecar.
+`MODELS.md` is one n×m grid: rows = departments, columns = `manage` / `implement` / `review` / `verify`. Same axes as the duty table. Cell = target. `—` = duty table no. Research is not a department column; keep a 1×1 sidecar.
 
 ```
 confirmed: no | yes

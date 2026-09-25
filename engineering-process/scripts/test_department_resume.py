@@ -68,11 +68,11 @@ class ResumeContinuationContractTest(unittest.TestCase):
             "Never infer the continuation target from an old conversation id",
             self.section,
         )
-        self.assertIn("recorded at 分发", self.section)
+        self.assertIn("recorded at handoff", self.section)
 
     def test_hop_table_marks_same_department_as_continuation(self) -> None:
         self.assertIn(
-            "that is a continuation, not a new 分发: **Department resume**",
+            "that is a continuation, not a new handoff: **Department resume**",
             TEMPLATES,
         )
 

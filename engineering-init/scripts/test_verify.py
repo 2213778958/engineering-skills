@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[2]
 class StagesTests(unittest.TestCase):
     def test_no_render_stage(self) -> None:
         names = [name for name, _ in verify.STAGES]
-        self.assertEqual(names, ["watch", "route", "registry", "callers", "verify", "guard", "sessions", "spawn", "process", "maker", "engineering-watch", "research", "dispatch"])
+        self.assertEqual(names, ["watch", "route", "registry", "callers", "verify", "guard", "sessions", "spawn", "process", "maker", "engineering-watch", "research", "dispatch", "english"])
 
     def test_stage_scripts_exist(self) -> None:
         for _, command in verify.STAGES:
@@ -53,6 +53,10 @@ class StagesTests(unittest.TestCase):
     def test_dispatch_stage_is_dispatch_table(self) -> None:
         dispatch = dict(verify.STAGES)["dispatch"]
         self.assertEqual(dispatch[1], "engineering-routing/scripts/test_dispatch_table.py")
+
+    def test_english_stage_is_english_body(self) -> None:
+        english = dict(verify.STAGES)["english"]
+        self.assertEqual(english[1], "engineering-init/scripts/test_english_body.py")
 
     def test_process_stage_is_source_markers(self) -> None:
         process = dict(verify.STAGES)["process"]
@@ -149,7 +153,7 @@ class RunStageTests(unittest.TestCase):
         timeouts = {name: 1.0 for name, _ in verify.STAGES}
         self.assertEqual(
             sorted(timeouts),
-            ["callers", "dispatch", "engineering-watch", "guard", "maker", "process", "registry", "research", "route", "sessions", "spawn", "verify", "watch"],
+            ["callers", "dispatch", "engineering-watch", "english", "guard", "maker", "process", "registry", "research", "route", "sessions", "spawn", "verify", "watch"],
         )
 
 
