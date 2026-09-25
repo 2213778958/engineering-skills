@@ -101,6 +101,7 @@ class LayoutTests(unittest.TestCase):
 
     def test_wiki_sync(self) -> None:
         text = read(LAYOUT)
+        self.assertIn("| [[<slug>]] | research:<YYYY-MM>-<slug>/<slug>.md |", text)
         self.assertIn(".wiki.git research", text)
         self.assertIn("the only push a research employee makes", text)
 
@@ -139,6 +140,12 @@ class CallerAgreementTests(unittest.TestCase):
         self.assertIn("Only exception: the research synthesis subagent pushes the external `research/` git repo", rules)
         supervise = read(ROOT / "engineering-process" / "references" / "supervise.md")
         self.assertIn("except research synthesis → external `research/` repo", supervise)
+        self.assertIn("do not push the code repo's default branch |", rules)
+        conventions = read(ROOT / "engineering-init" / "references" / "conventions.md")
+        self.assertIn("the research synthesis subagent pushes the external `research/` repo", conventions)
+        templates = read(ROOT / "engineering-process" / "references" / "templates.md")
+        self.assertIn("The research synthesis subagent may push the external `research/` repo only", templates)
+        self.assertIn("do not git push the code repo; push only the `research/` repo", read(SKILL))
 
     def test_downstream_reads_research_path(self) -> None:
         hops = read(ROOT / "engineering-process" / "references" / "hops.md")

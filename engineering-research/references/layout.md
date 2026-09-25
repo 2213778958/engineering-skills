@@ -23,7 +23,7 @@ Two libraries sit beside `master/` and `worktree/` in the container folder, outs
 - Markdown only. No PDFs, images, archives or downloaded pages under `research/`.
 - File names are unique across the whole library (GitHub Wiki page names are global): entry `<slug>.md`, findings `<slug>--<face>.md`. Never a bare `README.md` or `<face>.md`.
 - One directory per research topic. New directory: `<YYYY-MM>` = the current month, `<slug>` = the topic in kebab-case. Same topic again → keep the existing directory and names; add a dated section to its entry md.
-- Index row: `| <YYYY-MM> | <topic> | [<slug>](<YYYY-MM>-<slug>/<slug>.md) |`. Create `Home.md` with a `| date | topic | entry |` header if missing.
+- Index row: `| <YYYY-MM> | <topic> | [[<slug>]] | research:<YYYY-MM>-<slug>/<slug>.md |`. `[[<slug>]]` is the Wiki page link; agents follow the `research:` path. Create `Home.md` with a `| date | topic | page | path |` header if missing.
 - Markdown refers to research files as `research:<path under research/>`, e.g. `research:2026-09-pixel-roguelike/pixel-roguelike.md`.
 
 ## Sync

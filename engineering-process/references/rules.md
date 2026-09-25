@@ -38,7 +38,7 @@ Duties: templates.md **职责表**.
 | Talk to the user | planning **manage** (session-start confirm: PROCESS modes + MODELS; 推进 / mode / `until` / `merge`); human **manage** (how to test and accept, and help) | delivery, acceptance, arbitration; employees |
 | Close acceptance | `acceptance` **manage** merged or the user said it merged | delivery, human, planning |
 | `git commit` (product) | `delivery` implement only | review, verify, manage, planning implement, arbitration implement |
-| `git push` | `delivery` **manage** only, and only after delivery verify passed (code repo); research synthesis subagent for the external `research/` repo only | other employees; planning; do not push the default branch |
+| `git push` | `delivery` **manage** only, and only after delivery verify passed (code repo); research synthesis subagent for the external `research/` repo only | other employees; planning; do not push the code repo's default branch |
 | Pause downstream / register bugfix tickets / resume and notify pull | `planning` **implement** during 决策. Pause hangs on the **last acceptance** of the bugfix chain | planning manage; the delivery department that found the bug |
 | Reproduce + arbitration opinion | `arbitration` implement; review reviews the opinion; `verify:` present → arbitration verify | debug, edit product code, open/merge PR |
 | Create git worktree | `planning` implement before 分发, per worktree.md | manage; other departments; do not POST `worktree: true` |

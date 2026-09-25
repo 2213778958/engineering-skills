@@ -29,7 +29,7 @@
 - 决策 technical work only by `planning` **implement**. From arbitration, apply the verdict; do not change it. Planning **manage** staffs that implement + review; does not run patch. Open/merge PR only by `acceptance` **manage**, and only if the ticket body has `engineering:pr`. Product-code edits only by the `delivery` implement **employee**. Heads merge / worktree git only by `acceptance` implement.
 - Arbitration: implement employee reproduces + opinion; review reviews the opinion; verify checks reproduction if a command exists. The verdict is written by the arbitration **department**. planning does not judge.
 - Enter arbitration only on the paths in `rules.md` Key points and **Review disposition** below. Delivery department reports those paths; planning **分发** arbitration. Delivery verify is not a trigger and has no `Challenge` field.
-- `git push` only the delivery **manage**, and only after delivery verify passed.
+- `git push` (code repo) only the delivery **manage**, and only after delivery verify passed. The research synthesis subagent may push the external `research/` repo only (rules.md 10).
 - Unblock = close upstream tickets. Do not unblock with `remove-blocked-by`.
 - worktrees: `planning` implement creates them before 分发; `acceptance` implement removes after merge. Both semi-auto and full-auto. Under the Canvas container `worktree/`. See [worktree.md](worktree.md). Do not POST `worktree: true`. Do not POST a tree path as `working_dir`.
 - After a 分发 → **stop**. Do not watch. After 回传 / 决策 receipts → **Stop** tables. After a **close**: first a ticket that close unblocked (`human` then acceptance); none → hop table. Same class → smallest issue number.
