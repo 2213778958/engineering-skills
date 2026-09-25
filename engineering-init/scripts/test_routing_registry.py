@@ -30,6 +30,7 @@ ENABLED = (
     "engineering-process",
     "engineering-research",
     "engineering-sessions",
+    "engineering-watch",
 )
 REGISTERED = (
     "engineering-routing",
@@ -79,8 +80,8 @@ class RepoRegistryGateTests(unittest.TestCase):
     def setUp(self) -> None:
         self.rows = registry.rows()
 
-    def test_real_table_parses_eight_rows(self) -> None:
-        self.assertEqual(len(self.rows), 8)
+    def test_real_table_parses_nine_rows(self) -> None:
+        self.assertEqual(len(self.rows), 9)
         self.assertEqual(
             tuple(row.skill for row in self.rows),
             (
@@ -89,6 +90,7 @@ class RepoRegistryGateTests(unittest.TestCase):
                 "engineering-research",
                 "engineering-routing",
                 "engineering-sessions",
+                "engineering-watch",
                 "openhands-sessions",
                 "openhands-watch",
                 "skill-maker",

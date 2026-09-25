@@ -13,6 +13,7 @@ One Markdown table. One row per registered skill. Columns, in order:
 | engineering-research | enabled | research | engineering-research | engineering-routing |
 | engineering-routing | registered | — | engineering-routing | — |
 | engineering-sessions | enabled | process | engineering-sessions | engineering-routing |
+| engineering-watch | enabled | process | engineering-watch | engineering-routing |
 | openhands-sessions | registered | — | openhands-sessions | — |
 | openhands-watch | registered | — | openhands-watch | — |
 | skill-maker | registered | — | skill-maker | — |

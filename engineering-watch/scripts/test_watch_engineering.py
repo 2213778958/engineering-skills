@@ -333,5 +333,29 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(calls, [CHILD])
 
 
+class ReadOnlyTests(unittest.TestCase):
+    """Watch observes only: every backend call is a GET; nothing resumes or posts."""
+
+    def test_every_api_call_is_get(self) -> None:
+        import ast
+
+        source = Path(watch_engineering.__file__).read_text(encoding="utf-8")
+        methods = [
+            node.args[0].value
+            for node in ast.walk(ast.parse(source))
+            if isinstance(node, ast.Call)
+            and getattr(node.func, "id", None) == "api"
+            and node.args
+            and isinstance(node.args[0], ast.Constant)
+        ]
+        self.assertTrue(methods)
+        self.assertEqual(set(methods), {"GET"})
+
+    def test_no_write_or_resume_paths(self) -> None:
+        source = Path(watch_engineering.__file__).read_text(encoding="utf-8")
+        for needle in ('"POST"', '"PUT"', '"PATCH"', '"DELETE"', "--mode", "resume(", "notify("):
+            self.assertNotIn(needle, source)
+
+
 if __name__ == "__main__":
     unittest.main()
