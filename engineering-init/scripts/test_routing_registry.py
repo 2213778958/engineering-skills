@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Tests: engineering-init's registry gate routes enabled, stops registered.
 
-The real repository table must gate exactly the registered series (ADR 0006:
+The real repository table must gate exactly the registered series (ADR 0007:
 the table is data; this module is a read-only consumer of the routing-table
 primitives). The fabricated-tree direction proves the skip is non-vacuous,
 off-repo: a registered row stops at the gate with the gate branch provably
@@ -26,9 +26,9 @@ import routing_registry as registry
 import routing_table
 
 ENABLED = (
-    "datasheet-headers",
     "engineering-init",
     "engineering-process",
+    "engineering-research",
     "openhands-sessions",
 )
 REGISTERED = ("engineering-routing", "openhands-watch", "skill-maker")
@@ -79,9 +79,9 @@ class RepoRegistryGateTests(unittest.TestCase):
         self.assertEqual(
             tuple(row.skill for row in self.rows),
             (
-                "datasheet-headers",
                 "engineering-init",
                 "engineering-process",
+                "engineering-research",
                 "engineering-routing",
                 "openhands-sessions",
                 "openhands-watch",

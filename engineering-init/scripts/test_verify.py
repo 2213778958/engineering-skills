@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parents[2]
 class StagesTests(unittest.TestCase):
     def test_no_render_stage(self) -> None:
         names = [name for name, _ in verify.STAGES]
-        self.assertEqual(names, ["watch", "route", "verify", "guard", "sessions", "spawn", "process"])
+        self.assertEqual(names, ["watch", "route", "registry", "verify", "guard", "sessions", "spawn", "process"])
 
     def test_stage_scripts_exist(self) -> None:
         for _, command in verify.STAGES:
@@ -137,7 +137,7 @@ class RunStageTests(unittest.TestCase):
         timeouts = {name: 1.0 for name, _ in verify.STAGES}
         self.assertEqual(
             sorted(timeouts),
-            ["guard", "process", "route", "sessions", "spawn", "verify", "watch"],
+            ["guard", "process", "registry", "route", "sessions", "spawn", "verify", "watch"],
         )
 
 
