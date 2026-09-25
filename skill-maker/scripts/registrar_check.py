@@ -2,7 +2,7 @@
 """Registrar checklist for one registration patch ticket.
 
 skill-maker executes registrations per
-``engineering-routing/references/routing-table.md`` § Registration (ADR 0006
+``engineering-routing/references/routing-table.md`` § Registration (ADR 0007
 Decision 1 + Decision 3). A registration touches skill files, the spec
 contains/uses entry, and one appended routing-table row — never engine code.
 ``validate_registration`` checks that checklist against one proposed row and

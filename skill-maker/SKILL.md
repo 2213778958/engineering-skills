@@ -10,18 +10,6 @@ description: >-
 
 Read this when creating or editing a skill. Write operations, not reasons.
 
-## Registrar
-
-Registering a skill = execute a registration patch ticket. Registration never dispatches anything: the table is data, routing consumes it; `registered` is NOT routable. Follow `engineering-routing/references/routing-table.md` § Registration step-for-step. Privileges and enforcement: read `references/privileges.md`.
-
-1. Skill files land in the repo: `<name>/SKILL.md` present, frontmatter `name:` equal to the directory name. Anyone may author; authorship is not gated.
-2. Spec contains/uses entry added: a contains edge from the owning parent; every enabled craft skill adds one `uses -> engineering-routing` edge; craft skills never get `-> sessions` edges.
-3. Exactly one routing-table row appended to `engineering-routing/references/routing-table.md`: state `registered` (not `enabled`), empty `group`, empty `uses`, `entry` = the skill name with no path separators.
-4. Never engine code: no edits to engineering-series `SKILL.md` or scripts. The table file itself is data, not engine code.
-5. Registration never dispatches anything. Enablement (`registered` -> `enabled`) is a separate patch ticket, not part of registration.
-
-Validate before executing the patch: `python skill-maker/scripts/registrar_check.py --name <name> --table engineering-routing/references/routing-table.md`. Empty output = pass. Fail closed on malformed input; never guess.
-
 ## Disk
 
 1. Directories: `~/.cursor/skills/<name>/` and `~/.openhands/skills/<name>/`, identical copies.
@@ -54,7 +42,7 @@ Validate before executing the patch: `python skill-maker/scripts/registrar_check
 Authority is split in three; detail and the registration/enablement flow: read `references/privileges.md`.
 
 1. **Exclusive engineering-series modifier** — only skill-maker edits or creates engineering-series skills (`engineering-*`, `*-sessions`, `*-watch`); every such change goes through a patch/acceptance ticket. Ad-hoc edits → **fail**.
-2. **Registrar** — execute registration patch tickets per `references/privileges.md`: the routing table in `engineering-routing` is data, routing consumes it; `registered` is NOT routable; enablement is a separate patch ticket; registration never dispatches; never engine code; fail closed on malformed input.
+2. **Registrar** — execute registration patch tickets per `references/privileges.md`: the routing table in `engineering-routing` is data, routing consumes it; `registered` is NOT routable; enablement is a separate patch ticket; registration never dispatches; never engine code; validate with `scripts/registrar_check.py` first and fail closed on malformed input.
 3. **No ownership of product craft content** — anyone may author a craft skill; skill-maker does not own, rewrite, or gate craft content.
 
 ## Done
