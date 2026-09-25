@@ -4,19 +4,20 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
 
-BASE = os.environ.get("OPENHANDS_URL", "http://localhost:8000").rstrip("/")
-KEY_PATH = Path.home() / ".openhands" / "agent-canvas" / "api-key.txt"
-UI = os.environ.get("OPENHANDS_UI", "http://localhost:3001").rstrip("/")
+sys.path.insert(
+    0, str(Path(__file__).resolve().parents[2] / "openhands-sessions" / "scripts")
+)
+from canvas_sessions import transport
+
+BASE = transport.BASE
+UI = transport.UI
 
 TERMINAL_OK = frozenset({"finished"})
 TERMINAL_BAD = frozenset({"error", "stopped"})
@@ -27,50 +28,11 @@ RESPONSE_CAP = 2000
 
 
 def api(method: str, path: str, timeout: int = 60) -> object:
-    key = KEY_PATH.read_text(encoding="utf-8").strip()
-    req = Request(
-        f"{BASE}{path}",
-        headers={
-            "X-Session-API-Key": key,
-            "X-Expose-Secrets": "encrypted",
-            "Accept": "application/json",
-        },
-        method=method,
-    )
-    try:
-        with urlopen(req, timeout=timeout) as resp:
-            raw = resp.read().decode("utf-8")
-            return json.loads(raw) if raw else {}
-    except HTTPError as exc:
-        err = exc.read().decode("utf-8", errors="replace")
-        raise SystemExit(f"HTTP {exc.code} {method} {path}: {err[:2000]}") from exc
-    except URLError as exc:
-        raise SystemExit(f"{method} {path} failed: {exc}") from exc
+    return transport.api(method, path, timeout=timeout)
 
 
 def get_conversation(cid: str) -> dict | None:
-    key = KEY_PATH.read_text(encoding="utf-8").strip()
-    req = Request(
-        f"{BASE}/api/conversations/{cid}",
-        headers={
-            "X-Session-API-Key": key,
-            "X-Expose-Secrets": "encrypted",
-            "Accept": "application/json",
-        },
-        method="GET",
-    )
-    try:
-        with urlopen(req, timeout=60) as resp:
-            raw = resp.read().decode("utf-8")
-            payload = json.loads(raw) if raw else {}
-            return payload if isinstance(payload, dict) else None
-    except HTTPError as exc:
-        if exc.code == 404:
-            return None
-        err = exc.read().decode("utf-8", errors="replace")
-        raise SystemExit(f"HTTP {exc.code} GET /api/conversations/{cid}: {err[:2000]}") from exc
-    except URLError as exc:
-        raise SystemExit(f"GET /api/conversations/{cid} failed: {exc}") from exc
+    return transport.get_conversation(cid)
 
 
 def parse_ts(value: object) -> datetime | None:
