@@ -1,6 +1,6 @@
 # Templates
 
-**Department** `template` on the ticket tree picks the hop. Duties: this **职责表** only. Five departments × four employee kinds. Datasheet extract is not a column (`datasheet-headers` from delivery only). Never a child conversation for an employee.
+**Department** `template` on the ticket tree picks the hop. Duties: this **职责表** only. Five departments × four employee kinds. Research is not a column (`engineering-research`); any department's manage may staff it. Never a child conversation for an employee.
 
 **manage** = this department window. Not a Task. **implement** / **review** / **verify** = **delegate**. Table "yes" = that manage must staff that role. Manage must not do implement / review / verify work.
 
@@ -24,7 +24,7 @@
 
 ## Rules
 
-- Employee kinds follow this 职责表. Datasheet extract is not a column: when needed, run `datasheet-headers` on the **delivery** department's implement ticket; not under `human` / `arbitration` / `planning` / `acceptance`. Do not open a separate extract ticket.
+- Employee kinds follow this 职责表. Research is not a column: when needed, run `engineering-research` (role `research`) on the ticket whose manage needs it — typically the **delivery** department's implement ticket; any department's manage may staff it. Do not open a separate extract ticket.
 - Before staffing, take the target from the `MODELS.md` employee cell (department × duty), then `engineering-routing`. Ignore a `dispatch` link on employee cells. Do not pick a subagent outside the catalog unless the user named one. Do not rewrite delegate to a child conversation. Wait until each employee receipt is in the department window. Background Task → **fail**. Launching Task is not hop finished.
 - 决策 technical work only by `planning` **implement**. From arbitration, apply the verdict; do not change it. Planning **manage** staffs that implement + review; does not run patch. Open/merge PR only by `acceptance` **manage**, and only if the ticket body has `engineering:pr`. Product-code edits only by the `delivery` implement **employee**. Heads merge / worktree git only by `acceptance` implement.
 - Arbitration: implement employee reproduces + opinion; review reviews the opinion; verify checks reproduction if a command exists. The verdict is written by the arbitration **department**. planning does not judge.
@@ -114,7 +114,7 @@ Follow the **职责表**. Hop `template` = that department's **manage** window.
 | template | Must not |
 |---|---|
 | **planning** | product code; open/merge PR; full plan; 分发 before 决策 receipts; follow to fix upstream; staff delivery/acceptance/arbitration employees; manage running patch |
-| **delivery** | open/merge PR; extra extract ticket; same-ticket switch to acceptance; 分发 another department; manage writing product code |
+| **delivery** | open/merge PR; extra research ticket; same-ticket switch to acceptance; 分发 another department; manage writing product code |
 | **acceptance** | PR on an implement ticket; manage merging heads or worktrees; 分发 another department |
 | **arbitration** | debug; edit product code; open/merge PR; nest arbitration; apply the verdict (planning implement); manage writing the opinion |
 | **human** | change contract; edit code; open/merge PR; staff implement/review/verify; treat 推进 as entry; notify before pass/fail |
