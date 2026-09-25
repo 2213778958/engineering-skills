@@ -5,7 +5,7 @@ Status: Accepted (person decision, recorded in planning conversation 2f26c192)
 
 ## Context
 
-Spec #1 fixes the layering: product skills only `read and run engineering-routing`; craft lives only in the routing table; process / init / skill-maker / research never touch the sessions adapter ("不对接 Matt"). Three pressures now converge: (a) more interface-layer skills are coming (pcb, ppt, …) and each must onboard without editing engine code; (b) the routing table currently lives inside `engineering-routing/SKILL.md`, coupling the registry to engine code; (c) skill-maker's authority is undefined — today it is a generic authoring skill, while the engineering family needs a controlled writer.
+Spec #1 fixes the layering: product skills only `read and run engineering-routing`; craft lives only in the routing table; process / init / skill-maker / research never touch the sessions adapter (spec #1 wording `不对接 Matt`: "do not wire to Matt"). Three pressures now converge: (a) more interface-layer skills are coming (pcb, ppt, …) and each must onboard without editing engine code; (b) the routing table currently lives inside `engineering-routing/SKILL.md`, coupling the registry to engine code; (c) skill-maker's authority is undefined — today it is a generic authoring skill, while the engineering family needs a controlled writer.
 
 ## Decisions
 

@@ -6,7 +6,7 @@ Supervise step 2 (3c) or step 3 (3a / 3b / 3d / 3e) in [supervise.md](supervise.
 
 Talk to the user. Tell them how to test and accept this gate (what to run or look at, what pass looks like). Help if they ask. Write comments as needed. Do not staff employees. Do not hand off. Do not notify until the person said pass or fail.
 
-Person said fail → reopen the previous implement ticket and send it back to `ready-for-agent`. Do not turn the gate ticket into `ready-for-agent`. Tree `issue: none`. Notify (`hop: send-back`, suggested next hand off to delivery). Person said the phenomenon passed → close **this** gate or sink, `issue: none`, notify (`hop: done`).
+Person said fail → reopen the previous implement ticket and send it back to `ready-for-agent`. Do not turn the gate ticket into `ready-for-agent`. Tree `issue: none`. Notify (`hop: send-back`, `suggested next: hand off delivery #<n>`). Person said the phenomenon passed → close **this** gate or sink, `issue: none`, notify (`hop: done`).
 
 ## 3b. `arbitration` (department)
 
@@ -40,7 +40,7 @@ Suggested edits: <ticket list or none>
 Hand to: planning
 ```
 
-`Verdict: review-wrong` and the implement ticket still open → write tree `template: delivery` and `issue:` that implement (suggested next hand off to delivery; same ticket and that department already dispatched → resume per rule 19 / templates.md **Department resume**, not a new dispatch). Other verdicts → write tree `issue: none` (suggested next decide). Notify. Stop.
+`Verdict: review-wrong` and the implement ticket still open → write tree `template: delivery` and `issue:` that implement (`suggested next: hand off delivery #<n>`; same ticket and that department already dispatched → resume per rule 19 / templates.md **Department resume**, not a new dispatch). Other verdicts → write tree `issue: none` (`suggested next: decide`). Notify. Stop.
 
 ## 3c. `planning` (planning **manage** decide)
 
@@ -52,8 +52,8 @@ After implement receipt:
 
 - Verdict "send-back" → next hop is hand off to delivery on that ticket.
 - Verdict "change-contract" (not upstream-bug) → hard stop (person must confirm).
-- Verdict "upstream-bug" → planning implement opens the bug tickets; next hop is hand off that bug implement (not the department that found the bug).
-- Resume done → next hop is hand off if any.
+- Verdict "upstream-bug" → planning implement opens the bug tickets; next hop is a handoff of that bug implement ticket to a delivery department (not the one that found the bug).
+- Resume done → next hop is a handoff, if any.
 
 Then templates.md **Stop** tables (After decide receipts).
 

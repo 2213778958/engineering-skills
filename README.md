@@ -54,7 +54,7 @@ Decides stay / child conversation / subagent, then calls sessions. It does not c
 Talks to Agent Canvas: list profiles, open a conversation, dispatch a child. Replace this file for Codex.
 
 **openhands-watch**
-Checks whether a dispatched child is alive, hung, or done. Planning does not watch after dispatch. Replace this file for Codex.
+Checks whether a dispatched child is alive, hung, or done. Planning does not watch after a handoff. Replace this file for Codex.
 
 **engineering-research**
 A research employee: turns one requirement into one research directory in the external `research/` library, entered through its `<slug>.md`. It splits the requirement into faces (approaches, assets, options, datasheet chip interfaces), researches them repo library first and the web only for gaps, and synthesizes one cross-checked answer. Both `research/` and the raw-material library `resources/` sit beside `master/` and `worktree/`, outside the code repo; `research/` may be a clone of the project's GitHub Wiki for collaboration; raw files are listed in `research:resources.md`. It does not open PDFs in this session and does not write headers or drivers.

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Guard: skill and doc bodies are English; Chinese lives only in allowed spots.
 
-Allowed: frontmatter (trigger words), the ``## Terms`` tables of the three entry
-skills, and quoted or backticked spans (user phrases, UI labels, runtime
-literals). ``README.md`` and ``CONTEXT.md`` stay bilingual.
+Allowed in Markdown: frontmatter (trigger words), the ``## Terms`` tables of
+the three entry skills, backticked literals, and double-quoted spans listed in
+``QUOTED`` (user phrases and UI labels). Python allows any string literal
+(runtime markers, fixtures). ``README.md`` and ``CONTEXT.md`` stay bilingual.
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ TERMS = {
     "回传": "report back",
     "开会话": "open a session",
 }
+QUOTED = {"推进", "领票", "下一张票", "主管", "继续工程", "子会话", "开会话", "子代理", "子智能体", "巡查", "无工作区"}
 
 
 def tracked(pattern: str) -> list[str]:
@@ -51,9 +53,12 @@ def terms_rows(rel: str) -> dict[str, str]:
     )}
 
 
-def stray(line: str) -> bool:
+def stray(line: str, markdown: bool) -> bool:
     line = re.sub(r"`[^`]*`", "", line)
-    line = re.sub(r'"[^"]*"', "", line)
+    if markdown:
+        line = re.sub(r'"([^"]*)"', lambda m: "" if m.group(1) in QUOTED else m.group(0), line)
+    else:
+        line = re.sub(r'"[^"]*"|\'[^\']*\'', "", line)
     return bool(CJK.search(line))
 
 
@@ -69,7 +74,7 @@ class EnglishBodyTests(unittest.TestCase):
                     in_terms = line == "## Terms" and rel.split("/")[0] in ENTRY_SKILLS
                 if in_terms and line.startswith("| "):
                     continue
-                if stray(line):
+                if stray(line, markdown=True):
                     bad.append(f"{rel}:{number}: {line}")
         self.assertEqual(bad, [])
 
@@ -78,9 +83,16 @@ class EnglishBodyTests(unittest.TestCase):
             f"{rel}:{number}: {line}"
             for rel in tracked("*.py")
             for number, line in body_lines(rel)
-            if stray(line)
+            if stray(line, markdown=False)
         ]
         self.assertEqual(bad, [])
+
+    def test_user_phrases_stay_literal(self) -> None:
+        routing = (ROOT / "engineering-routing" / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn('User said "子会话" / "开会话"', routing)
+        supervise = (ROOT / "engineering-process" / "references" / "supervise.md").read_text(encoding="utf-8")
+        self.assertIn('"推进" / "领票" / "下一张票" / "主管" / "继续工程"', supervise)
+        self.assertNotIn('"advance"', supervise)
 
     def test_entry_skills_share_the_terms_table(self) -> None:
         for skill in ENTRY_SKILLS:

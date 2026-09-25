@@ -11,7 +11,7 @@ Landing repo `docs/agents/MODELS.md`. Do not write the origin repo. Do not put t
 - **Employee** cells: `delegate` + a resolvable target. Those are not conversation windows. Department **manage** cells are the seat. MODELS must not write `dispatch` on implement / review / verify / research. Duties: process templates.md **duty table**.
 - User named a model / profile → follow the user for stay/dispatch windows only. Employee staffing still delegate.
 - `confirmed: no`: written, reported, user has not said to use this table. `yes`: user said use it or leave it.
-- process does not refill the whole table unless the user changes a cell. Existing file has `supervisor` and no `planning` → process treats that as planning manage `stay`. Missing other-department manage cell → process hand off uses this conversation's spawnable profile.
+- process does not refill the whole table unless the user changes a cell. Existing file has `supervisor` and no `planning` → process treats that as planning manage `stay`. Missing other-department manage cell → process handoff uses this conversation's spawnable profile.
 
 ## Key points: role → routing task type
 

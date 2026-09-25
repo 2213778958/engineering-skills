@@ -16,7 +16,7 @@
 
 | Department | manage | implement | review | verify |
 |---|---|---|---|---|
-| **planning** | talk to the user; this conversation has not confirmed yet (not report back): write missing `until: none`, print `mode` / `until` / `merge` / `verify` / `accept` + MODELS, wait for confirm, then advance; hand off to other departments; staff this department's employees and `research` (planning input); collect receipts; after handoff stop; after report back / decide receipts follow **Stop** tables | decide technical work: `engineering-init` **patch**, apply verdict, pause/resume, open bug tickets, comment pull again; create the ticket tree before handoff | review the planning implement output | — |
+| **planning** | talk to the user; this conversation has not confirmed yet (not a report back): write missing `until: none`, print `mode` / `until` / `merge` / `verify` / `accept` + MODELS, wait for confirm, then advance; hand off to other departments; staff this department's employees and `research` (planning input); collect receipts; after handoff stop; after report back / decide receipts follow **Stop** tables | decide technical work: `engineering-init` **patch**, apply verdict, pause/resume, open bug tickets, comment pull again; create the ticket tree before handoff | review the planning implement output | — |
 | **delivery** | staff employees; after receipts `git push` and close this implement ticket; sessions **notify** | product code + `git commit` (no push) | review the implementation | run `verify:` |
 | **acceptance** | staff employees; after receipts `gh pr` / honor `merge:`; close this acceptance; sessions **notify** | merge `engineering:heads`: create `merge/<n>` if needed, merge heads, worktree add/remove per worktree.md | review merge / PR scope | run `accept:` (`none` may still open a PR) |
 | **arbitration** | staff employees; after receipts write the verdict comment; sessions **notify** (next hop is decide) | reproduce + opinion; no product-code edits | review the opinion | run `verify:`; check whether reproduction holds |
@@ -154,12 +154,12 @@ Tree already has `issue:` = this open ticket and `template:` is a department hop
 
 | See | Hop | Planning department does |
 |---|---|---|
-| tree hop already set (ticket still open) | that `template:` | **hand off** that other department. `planning` leftover on a tree → **decide**, do not spawn |
+| tree hop already set (ticket still open) | that `template:` | **hand off** to that other department. `planning` leftover on a tree → **decide**, do not spawn |
 | plan / split tickets / fill graphs / change contract / fill tests / resume pause / unapplied verdict | `planning` | **decide** (this department's hop). Do not spawn |
-| implement ticket `ready-for-agent` (no `engineering:pr`) | `delivery` | **hand off** delivery department |
-| acceptance ticket `ready-for-agent` (has `engineering:pr`) and unblocked | `acceptance` | **hand off** acceptance department |
-| `ready-for-human` | `human` | **hand off** human department |
-| disputed review finding after disposition/rework, explicit contract/upstream challenge, or user challenge | `arbitration` | **hand off** arbitration department |
+| implement ticket `ready-for-agent` (no `engineering:pr`) | `delivery` | **hand off** to the delivery department |
+| acceptance ticket `ready-for-agent` (has `engineering:pr`) and unblocked | `acceptance` | **hand off** to the acceptance department |
+| `ready-for-human` | `human` | **hand off** to the human department |
+| disputed review finding after disposition/rework, explicit contract/upstream challenge, or user challenge | `arbitration` | **hand off** to the arbitration department |
 
 Same ticket and the target department already has a dispatch child → that is a continuation, not a new handoff: **Department resume** above.
 

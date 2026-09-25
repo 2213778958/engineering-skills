@@ -19,10 +19,10 @@ Pick link and target first, then read and run `engineering-sessions` (it reads t
 Planning is a **department** (user entry). The department window is **manage**. Other departments this process hands off to: delivery / acceptance / arbitration / human. Planning and human **manage** talk to the user. Human: how to test and accept, and help. **Employee** = implement / review / verify / research (Task). Duties: `engineering-process` templates.md **duty table**. Do not skip department → employee.
 
 - Planning **manage** **decide** → **stay** (staff `planning implement` + `planning review`, and `research` when planning needs research input; do not run patch here).
-- Planning **manage** **hand off** to another department → **dispatch**.
+- Planning **manage** **hands off** to another department → **dispatch**.
 - Department manage staffing an employee → **delegate**.
-- User said "子会话" / "open a session" → **dispatch** another **planning** department window.
-- User said "subagent / 子代理 / 子智能体" → **delegate**.
+- User said "子会话" / "开会话" → **dispatch** another **planning** department window.
+- User said "subagent" / "子代理" / "子智能体" → **delegate**.
 - Do not hand off an employee. Do not Task a department. Do not rewrite employee delegate to dispatch.
 
 User named a profile or model → follow the user for the **target**, then resolve via sessions. If the user did not name a target: repo `docs/agents/MODELS.md` has a row for this **role** → use that row's **target**. Planning department row: `stay`. Other department rows: `dispatch`. Employee rows: ignore a `dispatch` link; still **delegate**. Else use the dispatch table below. Only targets that appear in sessions **list** / subagent catalog. Missing row → the dispatch table's unconfirmed-decision row. Do not pick `gpt-6-astra-*`.
