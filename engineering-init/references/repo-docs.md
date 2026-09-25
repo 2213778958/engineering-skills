@@ -213,7 +213,7 @@ Write: product name, confirmed layer names, **domain words** on the module list 
 
 Do not write: `src` `utils` `test` `app` as ordinary modules (except as a layer name), ticket numbers, file names, general programming words (timeout, buffer, error).
 
-One word, two meanings, unconfirmed → `grilling`; do not guess. Synonyms: pick one; the rest go under `_Avoid_`.
+One word, two meanings, unconfirmed → read and run `engineering-routing` for the decision; do not guess. Synonyms: pick one; the rest go under `_Avoid_`.
 
 ### File already exists
 

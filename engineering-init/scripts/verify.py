@@ -16,6 +16,7 @@ STAGES = (
     ("watch", (sys.executable, "openhands-watch/scripts/test_watch.py")),
     ("route", (sys.executable, "engineering-routing/scripts/test_routing_table.py")),
     ("registry", (sys.executable, "engineering-init/scripts/test_routing_registry.py")),
+    ("callers", (sys.executable, "engineering-init/scripts/test_routing_callers.py")),
     ("verify", (sys.executable, "engineering-init/scripts/test_verify.py")),
     ("guard", (sys.executable, "engineering-init/scripts/test_no_render_mandates.py")),
     ("sessions", (sys.executable, "openhands-sessions/scripts/test_sessions.py")),
@@ -143,6 +144,8 @@ def main() -> int:
                         help="route stage timeout (seconds)")
     parser.add_argument("--registry-timeout", type=_positive_timeout,
                         help="registry stage timeout (seconds)")
+    parser.add_argument("--callers-timeout", type=_positive_timeout,
+                        help="callers stage timeout (seconds)")
     parser.add_argument("--verify-timeout", type=_positive_timeout,
                         help="verify stage timeout (seconds)")
     parser.add_argument("--guard-timeout", type=_positive_timeout,
@@ -162,6 +165,7 @@ def main() -> int:
         "watch": args.watch_timeout,
         "route": args.route_timeout,
         "registry": args.registry_timeout,
+        "callers": args.callers_timeout,
         "verify": args.verify_timeout,
         "guard": args.guard_timeout,
         "sessions": args.sessions_timeout,

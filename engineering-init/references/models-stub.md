@@ -4,8 +4,8 @@ Landing repo `docs/agents/MODELS.md`. Do not write the origin repo. Do not put t
 
 ## Rules
 
-- Target names must resolve via this harness's `*-sessions` **list** (Cursor / OpenHands: `openhands-sessions`. Use `codex-sessions` only if this session is Codex and that skill exists). Do not copy POST. Do not invent catalog ids.
-- Role → task type only from the `engineering-routing` table. Do not invent a third task-type table here.
+- Target names must resolve via `engineering-sessions` **list** (it runs the adapter named by the `sessions:` latch; default `openhands-sessions`). Do not copy POST. Do not invent catalog ids.
+- Role → task type only from the `engineering-routing` table. Routable skills: `enabled` rows of `engineering-routing/references/routing-table.md`; a `registered` row is not routable. Do not invent a third task-type table here.
 - Write the routing **link as the table says**. Planning manage cell is `stay`. Other department manage cells are `dispatch`. Employee cells are `delegate`. Do not rewrite `delegate` to `dispatch`. Do not write `delegate` on a manage cell.
 - Planning is a **department**. Conversation windows. Planning department `stay`. 分发 another department (`delivery` / `acceptance` / `arbitration` / `human`) `dispatch`. Target for stay = **this conversation's model** (ACP is the Cursor bridge, not the role; grok via ACP is allowed). Target for dispatch = a spawnable profile from sessions **list** (same family/effort as this conversation when possible).
 - **Employee** cells: `delegate` + a resolvable target. Those are not conversation windows. Department **manage** cells are the seat. MODELS must not write `dispatch` on implement / review / verify / research. Duties: process templates.md **职责表**.
@@ -37,8 +37,8 @@ Landing repo `docs/agents/MODELS.md`. Do not write the origin repo. Do not put t
 
 ## Steps: fill at plan close-out
 
-1. Read and run this harness's sessions **list** (no POST).
-2. For each cell: write a resolvable target. Planning manage: this conversation's model (ACP bridge allowed). Other manage cells: spawnable profile. Employee cells: catalog target. `—` = 职责表 no. Do not write `dispatch` on employee cells. Cannot resolve a name → `grilling` that cell; do not invent a name.
+1. Read and run `engineering-sessions` **list** (no POST).
+2. For each cell: write a resolvable target. Planning manage: this conversation's model (ACP bridge allowed). Other manage cells: spawnable profile. Employee cells: catalog target. `—` = 职责表 no. Do not write `dispatch` on employee cells. Cannot resolve a name → read and run `engineering-routing` for the decision on that cell; do not invent a name.
 3. Write this file. `confirmed: no`.
 4. Print the whole table; ask if the user wants changes. User says use it / no change → `confirmed: yes`. User changes a cell → write then `yes`.
 
