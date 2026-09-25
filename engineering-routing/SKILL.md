@@ -13,9 +13,10 @@ Pick link and target first, then read and run this harness's `*-sessions` (defau
 
 | Mode | When | Done |
 |---|---|---|
+| **research** | Need a technical question answered / need registers or interfaces from a datasheet PDF, keeping sources and PDF body out of this session | `engineering-research` delegated and its receipt in this conversation |
 | **route** | Dispatch work / pick who by type | stay / dispatch / delegate chosen and sessions run; delegate receipt in this conversation |
 
-Planning is a **department** (user entry). The department window is **manage**. Other departments this process 分发: delivery / acceptance / arbitration / human. Planning and human **manage** talk to the user. Human: how to test and accept, and help. **Employee** = implement / review / verify / extract (Task). Duties: `engineering-process` templates.md **职责表**. Do not skip department → employee.
+Planning is a **department** (user entry). The department window is **manage**. Other departments this process 分发: delivery / acceptance / arbitration / human. Planning and human **manage** talk to the user. Human: how to test and accept, and help. **Employee** = implement / review / verify / research (Task). Duties: `engineering-process` templates.md **职责表**. Do not skip department → employee.
 
 - Planning **manage** **决策** → **stay** (staff `planning implement` + `planning review`; do not run patch here).
 - Planning **manage** **分发** another department → **dispatch**.
@@ -30,7 +31,7 @@ User named a profile or model → follow the user for the **target**, then resol
 
 | Task type | Link | Target |
 |---|---|---|
-| Extract registers from a PDF / datasheet; keep the body out of this session | delegate | subagent `general-purpose` |
+| Extract registers from a PDF / datasheet, or answer a technical question; keep the sources and body out of this session (`engineering-research`) | delegate | subagent `general-purpose` |
 | Mechanical edits: rename / format / small patch | delegate | subagent `general-purpose` |
 | Read-only search / locate files and symbols | delegate | subagent `code-explorer` (`inherit`) |
 | Search / fetch web sources | delegate | subagent `web-researcher` |
@@ -58,7 +59,7 @@ User named a profile or model → follow the user for the **target**, then resol
 
 ## route
 
-1. Classify the task type (process: planning department 决策 / 分发 another department / other department hop / employee role from `MODELS.md`). Unsure → `grilling` (decision) or scan the repo (fact).
+1. Classify the task type (process: research / planning department 决策 / 分发 another department / other department hop / employee role from `MODELS.md`). Unsure → `grilling` (decision) or scan the repo (fact).
 2. **stay** → finish in this conversation. No POST, no Task. ACP bridge is allowed.
 3. **dispatch** → planning **manage** 分发 **another** department, or user 开会话 (another **planning** department window). sessions `spawn.py` only. Omit `--this-id`. Do not pass `CURSOR_CONVERSATION_ID`. Process 分发 prompt: this child is that department **manage**; staff employees per 职责表; wait until each receipt is in that window; then sessions **notify**; stop. User 开会话 prompt: this child is the **planning** manage window.
 4. **delegate** → sessions **delegate** only (Task). Same prompt rules. Wait until the receipt is in this conversation. Background Task / fire-and-forget → **fail**. Receipt missing → **fail**. No Task → fail; do not dispatch.
