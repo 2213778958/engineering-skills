@@ -29,6 +29,7 @@ import unittest
 import urllib.request
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from typing import Callable
 from unittest.mock import patch
 MODULE_PATH = Path(__file__).with_name("spawn.py")
 SPEC = importlib.util.spec_from_file_location("spawn", MODULE_PATH)
@@ -327,17 +328,32 @@ PROFILE = "12345678-1234-5678-1234-567812345678"
 REAL_URLOPEN = urllib.request.urlopen
 
 
-def api_recorder(convs: dict, posts: list, events: dict | None = None):
+def api_recorder(
+    convs: dict,
+    posts: list,
+    events: dict | None = None,
+    persist: Callable[[str, dict], object] | None = None,
+):
     """Drive real adapter code paths through a controlled in-memory backend.
 
     Args:
         convs: Conversation lookup keyed by id.
         posts: Receives the POSTed paths.
-        events: Optional persisted events per conversation id, served by GET
-            ``/api/conversations/{id}/events/search`` (#53: the conversation
-            id lives before the ``/events`` segment even with the query
-            string appended) as ``{"items": [...]}``.
+        events: Optional seed of persisted events per conversation id, served
+            by GET ``/api/conversations/{id}/events/search`` (#53: the
+            conversation id lives before the ``/events`` segment even with
+            the query string appended) as ``{"items": [...]}``. POSTed
+            role-form events are appended to the store (#56: the real
+            backend persists them verbatim under the user MessageEvent
+            kind), so a post-POST delivery readback observes the landing.
+        persist: Optional callable ``(cid, body) -> event | None`` overriding
+            how a POSTed event is persisted (#56): the returned event is
+            stored verbatim, and ``None`` models the event not persisting at
+            all. Lets tests reproduce the #49 backend defect (POST accepted
+            yet persisted with empty content) and sibling readback failures
+            without touching production code.
     """
+    store: dict[str, list] = {cid: list(seed) for cid, seed in (events or {}).items()}
 
     def record(method, path, body=None, timeout=60, redact_error=False):
         if path.startswith("/api/conversations/search"):
@@ -345,7 +361,7 @@ def api_recorder(convs: dict, posts: list, events: dict | None = None):
         if method == "GET" and "/events" in path:
             scoped = path[len("/api/conversations/") :]
             cid = scoped.split("/events", 1)[0]
-            return {"items": list((events or {}).get(cid, []))}
+            return {"items": list(store.get(cid, []))}
         if method == "POST" and path == "/api/conversations":
             posts.append(path)
             requested = str((body or {}).get("conversation_id") or "")
@@ -354,7 +370,20 @@ def api_recorder(convs: dict, posts: list, events: dict | None = None):
                     return dict(convs[requested])
                 return {"id": requested, "conversation_id": ""}
             return dict(convs.get("__create__", {"id": CHILD, "conversation_id": ""}))
-        if method == "POST" and (path.endswith("/events") or path.endswith("/run")):
+        if method == "POST" and path.endswith("/events"):
+            posts.append(path)
+            scoped = path[len("/api/conversations/") :]
+            cid = scoped.split("/events", 1)[0]
+            if persist is not None:
+                event = persist(cid, body)
+                if event is not None:
+                    store.setdefault(cid, []).append(event)
+            else:
+                store.setdefault(cid, []).append(
+                    {"kind": "MessageEvent", "source": "user", "llm_message": body}
+                )
+            return {}
+        if method == "POST" and path.endswith("/run"):
             posts.append(path)
             return {}
         if method == "GET" and path.startswith("/api/conversations/"):
@@ -682,9 +711,10 @@ class ResumeTests(LedgerIsolatedTestCase):
         self.assertEqual(len(bodies), 1)
         persisted = bodies[0]["content"]
         self.assertTrue(persisted)
-        self.assertEqual(
-            persisted, [{"type": "text", "text": prompt}]
-        )
+        # The full continuation text lands verbatim, prefixed only by the
+        # #56 delivery sentinel demanded by the post-POST readback.
+        self.assertTrue(persisted[0]["text"].startswith(prompt))
+        self.assertRegex(persisted[0]["text"], r"delivery-marker: [0-9a-f]{12}$")
         self.assertEqual(bodies[0]["role"], "user")
         self.assertIs(bodies[0]["run"], True)
         self.assertNotIn("llm_message", bodies[0])
@@ -970,10 +1000,106 @@ class NotifyIdentityTests(LedgerIsolatedTestCase):
         self.assertEqual(len(bodies), 1)
         persisted = bodies[0]["content"]
         self.assertTrue(persisted)
-        self.assertEqual(persisted, [{"type": "text", "text": report}])
+        # The full report text lands verbatim; the delivery sentinel (#56)
+        # is appended for the post-POST readback and must not displace it.
+        self.assertTrue(persisted[0]["text"].startswith(report))
+        self.assertRegex(persisted[0]["text"], r"delivery-marker: [0-9a-f]{12}$")
         self.assertEqual(bodies[0]["role"], "user")
         self.assertIs(bodies[0]["run"], True)
         self.assertNotIn("llm_message", bodies[0])
+
+    def test_empty_content_readback_is_judged_undelivered(self) -> None:
+        # Issue #49/#56: the backend accepts the event POST yet persists the
+        # user MessageEvent with empty llm_message.content, silently dropping
+        # the text. Acceptance alone must never read as delivered: the
+        # readback routes the delivery through the unknown/ledger path and
+        # exits non-zero.
+        convs = {PARENT: {"id": PARENT, "status": "running"}}
+
+        def persist_empty(cid: str, body: dict) -> dict:
+            return {
+                "kind": "MessageEvent",
+                "source": "user",
+                "llm_message": {**body, "content": []},
+            }
+
+        recorder = api_recorder(convs, self.posts, None, persist=persist_empty)
+        receipt_stream = io.StringIO()
+        with patch.object(transport, "api", side_effect=recorder), \
+                redirect_stdout(receipt_stream), self.assertRaises(SystemExit):
+            spawn.run_notify(
+                self.notify_args(related_request_id="req-not1"),
+                self.child_window(),
+                CHILD,
+            )
+        self.assertIn(f"/api/conversations/{PARENT}/events", self.posts)
+        receipts = receipt_stream.getvalue()
+        # The POST's provisional "accepted by API response" receipt is fine;
+        # the FINAL receipt after readback must be unknown, never accepted.
+        self.assertIn("accepted by API response", receipts)
+        self.assertIn('"receipt": "unknown"', receipts)
+        self.assertIn("empty content", receipts)
+        final_receipts = [
+            json.loads(block)
+            for block in receipts.strip().replace("}\n{", "}\r{").split("\r")
+        ]
+        # First receipt: provisional POST acceptance (legitimate). Final
+        # receipt: the readback adjudication, which must be unknown.
+        self.assertEqual("accepted", final_receipts[0]["receipt"])
+        self.assertEqual("unknown", final_receipts[-1]["receipt"])
+        entry = spawn.load_ledger(PARENT)["req-report1"]
+        self.assertEqual(entry["status"], "unknown")
+        self.assertIn("empty content", entry["evidence"])
+        self.assertEqual(entry["attempts"], 1)
+
+    def test_readback_failure_variants_are_judged_undelivered(self) -> None:
+        # Same seam, remaining readback failure shapes (#56): the POST is
+        # accepted but the newest user MessageEvent either carries a stale
+        # text without this delivery's sentinel, or never persists at all.
+        # Both must be judged undelivered, never accepted.
+        convs = {PARENT: {"id": PARENT, "status": "running"}}
+
+        def persist_stale(cid: str, body: dict) -> dict:
+            return {
+                "kind": "MessageEvent",
+                "source": "user",
+                "llm_message": {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "stale sibling delivery text"}
+                    ],
+                },
+            }
+
+        def persist_nothing(cid: str, body: dict) -> None:
+            return None
+
+        cases = (
+            ("sentinel-missing", persist_stale, "missing from"),
+            ("event-not-persisted", persist_nothing, "not found or events read failed"),
+        )
+        for label, persist, evidence_needle in cases:
+            with self.subTest(variant=label):
+                posts: list = []
+                request_id = f"req-rb-{label}"
+                recorder = api_recorder(convs, posts, None, persist=persist)
+                receipt_stream = io.StringIO()
+                with patch.object(transport, "api", side_effect=recorder), \
+                        redirect_stdout(receipt_stream), \
+                        self.assertRaises(SystemExit):
+                    spawn.run_notify(
+                        self.notify_args(
+                            request_id=request_id,
+                            related_request_id="req-not1",
+                        ),
+                        self.child_window(),
+                        CHILD,
+                    )
+                self.assertIn(f"/api/conversations/{PARENT}/events", posts)
+                self.assertIn('"receipt": "unknown"', receipt_stream.getvalue())
+                entry = spawn.load_ledger(PARENT)[request_id]
+                self.assertEqual(entry["status"], "unknown")
+                self.assertIn(evidence_needle, entry["evidence"])
 
     def test_related_request_mismatch_rejected_without_post(self) -> None:
         convs = {PARENT: {"id": PARENT, "status": "running"}}
@@ -1746,10 +1872,28 @@ class ControlledHTTPHandler(http.server.BaseHTTPRequestHandler):
             },
         }
         payload = conversations.get(self.path)
-        if payload is None:
-            self._json(404, {"detail": "not found"})
-        else:
+        if payload is not None:
             self._json(200, payload)
+            return
+        if self.path.startswith(f"/api/conversations/{CHILD}/events/search"):
+            items = []
+            if self.server.events_posted:
+                body = json.loads(self.server.events_posted.decode("utf-8"))
+                items = [
+                    {"kind": "MessageEvent", "source": "user", "llm_message": body}
+                ]
+            self._json(200, {"items": items})
+            return
+        if self.path.startswith(f"/api/conversations/{PARENT}/events/search"):
+            items = []
+            if self.server.notify_posted:
+                body = json.loads(self.server.notify_posted.decode("utf-8"))
+                items = [
+                    {"kind": "MessageEvent", "source": "user", "llm_message": body}
+                ]
+            self._json(200, {"items": items})
+            return
+        self._json(404, {"detail": "not found"})
 
     def do_POST(self) -> None:
         length = int(self.headers.get("Content-Length", "0"))
@@ -1757,7 +1901,11 @@ class ControlledHTTPHandler(http.server.BaseHTTPRequestHandler):
         self.server.requests.append(("POST", self.path, body))
         if self.path == "/api/conversations":
             self._json(200, {"id": CHILD, "conversation_id": CHILD})
-        elif self.path.endswith("/events"):
+        elif self.path == f"/api/conversations/{CHILD}/events":
+            self.server.events_posted = body
+            self._json(200, {"accepted": True})
+        elif self.path == f"/api/conversations/{PARENT}/events":
+            self.server.notify_posted = body
             self._json(200, {"accepted": True})
         else:
             self._json(404, {"detail": "not found"})
@@ -1773,6 +1921,8 @@ class ProcessCompletionAcceptanceTests(unittest.TestCase):
         self.server = ControlledHTTPServer(("127.0.0.1", 0), ControlledHTTPHandler)
         self.server.working_dir = self.working_dir
         self.server.requests = []
+        self.server.events_posted = None
+        self.server.notify_posted = None
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
 
@@ -1875,16 +2025,19 @@ class ProcessCompletionAcceptanceTests(unittest.TestCase):
         )
         self.assertEqual(resume["receipt"], "accepted")
         self.assertEqual(resume["operation"], "resume")
-        self.assertEqual(self.server.requests[-1][0:2], ("POST", f"/api/conversations/{CHILD}/events"))
-        resume_body = json.loads(self.server.requests[-1][2].decode("utf-8"))
-        self.assertEqual(
-            resume_body,
-            {
-                "role": "user",
-                "content": [{"type": "text", "text": "resume ticket #41"}],
-                "run": True,
-            },
-        )
+        # requests[-1] is the #56 post-POST readback GET; select the POST.
+        resume_post = [
+            request
+            for request in self.server.requests
+            if request[0] == "POST"
+            and request[1] == f"/api/conversations/{CHILD}/events"
+        ][-1]
+        resume_body = json.loads(resume_post[2].decode("utf-8"))
+        self.assertEqual(resume_body["role"], "user")
+        self.assertIs(resume_body["run"], True)
+        self.assertEqual(resume_body["content"][0]["type"], "text")
+        self.assertTrue(resume_body["content"][0]["text"].startswith("resume ticket #41"))
+        self.assertRegex(resume_body["content"][0]["text"], r"delivery-marker: [0-9a-f]{12}$")
 
         report = self.write_prompt(
             "report.txt",
@@ -1909,11 +2062,14 @@ class ProcessCompletionAcceptanceTests(unittest.TestCase):
         )
         self.assertEqual(notify["receipt"], "accepted")
         self.assertEqual(notify["operation"], "notify")
-        self.assertEqual(
-            self.server.requests[-1][0:2],
-            ("POST", f"/api/conversations/{PARENT}/events"),
-        )
-        notify_body = json.loads(self.server.requests[-1][2].decode("utf-8"))
+        # requests[-1] is the #56 post-POST readback GET; select the POST.
+        notify_post = [
+            request
+            for request in self.server.requests
+            if request[0] == "POST"
+            and request[1] == f"/api/conversations/{PARENT}/events"
+        ][-1]
+        notify_body = json.loads(notify_post[2].decode("utf-8"))
         self.assertTrue(notify_body["content"])
         self.assertIn("request: req-dispatch", notify_body["content"][0]["text"])
 

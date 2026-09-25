@@ -15,6 +15,7 @@ import canvas_sessions.ledger as ledger
 from .identity import DEPARTMENTS
 
 REPORT_PREFIX = "engineering:report"
+DELIVERY_MARKER_PREFIX = "delivery-marker"
 REPORT_HOPS = {
     "done",
     "send-back",
@@ -114,10 +115,114 @@ def event_payload(text: str) -> dict[str, Any]:
     }
 
 
+def embed_delivery_marker(text: str) -> str:
+    """Append a short unique uuid sentinel to the delivery text.
+
+    The backend may accept an event POST (HTTP 202) yet persist it with
+    empty content (#49/#56). API acceptance alone therefore proves nothing;
+    the sentinel gives the post-POST readback an exact, per-delivery token
+    to demand from the persisted user message, so a stale or sibling event
+    can never pass for this delivery.
+
+    Args:
+        text: Report or continuation text about to be posted.
+
+    Returns:
+        The text with a ``delivery-marker: <short-uuid>`` line appended;
+        unchanged when a marker line is already present.
+    """
+    if DELIVERY_MARKER_PREFIX in text:
+        return text
+    token = uuid.uuid4().hex[:12]
+    return f"{text.rstrip()}\n{DELIVERY_MARKER_PREFIX}: {token}"
+
+
+def delivery_sentinel(text: str) -> str:
+    """Extract the sentinel token this delivery must read back.
+
+    Args:
+        text: Delivery text after embed_delivery_marker.
+
+    Returns:
+        The ``delivery-marker`` value, or the stripped text when no marker
+        line is present (legacy callers).
+    """
+    match = re.search(
+        rf"^\s*{re.escape(DELIVERY_MARKER_PREFIX)}:\s*(\S+)\s*$", text, re.M
+    )
+    return match.group(1) if match else text.strip()
+
+
+def is_user_message_event(event: object) -> bool:
+    """Classify one persisted event as a user MessageEvent.
+
+    Args:
+        event: One item from the events search response.
+
+    Returns:
+        True when the item is a MessageEvent raised by the user side (the
+        role-style POST is persisted under the MessageEvent kind).
+    """
+    if not isinstance(event, dict):
+        return False
+    kind = str(event.get("kind") or "")
+    if kind and kind != "MessageEvent":
+        return False
+    source = str(event.get("source") or "")
+    if source and source != "user":
+        return False
+    llm_message = event.get("llm_message")
+    role = ""
+    if isinstance(llm_message, dict):
+        role = str(llm_message.get("role") or "")
+    return role == "user" or str(event.get("role") or "") == "user"
+
+
+def readback_delivery_text(cid: str) -> str | None:
+    """Read the newest persisted user MessageEvent text for one conversation.
+
+    Uses the same conversation-scoped events search endpoint as the
+    reconcile read (#53), newest first.
+
+    Args:
+        cid: Conversation whose persisted events are read.
+
+    Returns:
+        The flattened text of the newest user MessageEvent (empty string
+        when it carries no text), or None when the read fails outright or
+        no user MessageEvent exists. Both failure shapes must be judged a
+        delivery failure by the caller (#56).
+    """
+    try:
+        payload = transport.api("GET", event_search_path(cid))
+    except (SystemExit, TimeoutError, *ledger.TRANSPORT_ERRORS):
+        return None
+    items: list[object] = []
+    if isinstance(payload, list):
+        items = payload
+    elif isinstance(payload, dict) and isinstance(payload.get("items"), list):
+        items = payload["items"]
+    for event in items:
+        if not is_user_message_event(event):
+            continue
+        llm_message = event.get("llm_message")
+        if isinstance(llm_message, dict):
+            return event_text_blob(llm_message)
+        return event_text_blob(event)
+    return None
+
+
 def send_event(
     cid: str, text: str, poster, ctx: dict
 ) -> tuple[object, dict, BaseException | None]:
-    """POST the continuation/report event to one conversation via the adapter.
+    """POST the continuation/report event and prove it persisted (#56).
+
+    The POST is delivered with the role-style payload plus an embedded
+    delivery sentinel. API acceptance is not proof (#49: HTTP 202 with
+    empty persisted content), so the newest persisted user MessageEvent is
+    read back and must be non-empty and contain the sentinel. Any readback
+    failure is a transport-level unknown: the caller records it through the
+    existing ledger and the bounded re-send path, never as accepted.
 
     Args:
         cid: Target conversation (parent for notify, exact child for resume).
@@ -126,15 +231,40 @@ def send_event(
         ctx: Receipt context (operation/request_id/ticket/department/...).
 
     Returns:
-        The result of the single event POST. Explicit backend rejection is
-        terminal; ambiguous transport failure is reconciled by the ledger.
+        (payload, receipt, error) of the delivery. error is None only when
+        the POST was accepted AND the readback proves the sentinel landed.
     """
-    return poster(
+    delivery_text = embed_delivery_marker(text)
+    sentinel = delivery_sentinel(delivery_text)
+    payload, receipt, err = poster(
         "POST",
         f"/api/conversations/{cid}/events",
-        event_payload(text),
+        event_payload(delivery_text),
         True,
     )
+    if err is not None:
+        return payload, receipt, err
+    persisted = readback_delivery_text(cid)
+    if persisted is None:
+        evidence = (
+            f"delivery readback failed: newest user MessageEvent for "
+            f"{cid} not found or events read failed; acceptance unproven"
+        )
+    elif not persisted.strip():
+        evidence = (
+            f"delivery readback failed: newest user MessageEvent for "
+            f"{cid} persisted with empty content; text was lost (#49)"
+        )
+    elif sentinel not in persisted:
+        evidence = (
+            f"delivery readback failed: sentinel {sentinel!r} missing from "
+            f"newest user MessageEvent for {cid}; acceptance unproven"
+        )
+    else:
+        return payload, receipt, None
+    unknown = ledger.make_receipt("unknown", evidence=evidence, **ctx)
+    ledger.emit_receipt(unknown)
+    return None, unknown, SystemExit(evidence)
 
 
 def event_text_blob(event: object) -> str:

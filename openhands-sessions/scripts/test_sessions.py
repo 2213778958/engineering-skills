@@ -234,9 +234,14 @@ class CanvasApi:
             }
         }
         self.dispatch_tag_override = {}
+        self.events: dict[str, list] = {}
 
     def __call__(self, method, path, body=None, timeout=60, redact_error=False):
         self.calls.append((method, path, body, timeout))
+        if method == "GET" and path.split("?")[0].endswith("/events/search"):
+            conversation_id = path.split("/")[3]
+            items = list(reversed(self.events.get(conversation_id, [])))
+            return json.loads(json.dumps({"items": items}))
         if method == "GET" and path.startswith("/api/conversations/search"):
             return {"items": []}
         if method == "GET" and path.startswith("/api/conversations/"):
@@ -259,6 +264,11 @@ class CanvasApi:
             }
             return {"id": conversation_id}
         if method == "POST" and path.endswith("/events"):
+            assert body is not None
+            conversation_id = path.split("/")[3]
+            self.events.setdefault(conversation_id, []).append(
+                json.loads(json.dumps(body))
+            )
             return {"accepted": True}
         if method == "POST" and path.endswith("/run"):
             return {"started": True}
