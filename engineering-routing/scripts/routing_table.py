@@ -2,7 +2,7 @@
 """Read the routing-table registry and answer route/skip per skill.
 
 The registry is pure data in
-``engineering-routing/references/routing-table.md`` (ADR 0006 Decision 1:
+``engineering-routing/references/routing-table.md`` (ADR 0007 Decision 1:
 never engine code). This module is its only consumer: it parses the table,
 lists the skills routing may dispatch to, and answers route-or-skip for a
 single skill name. A `registered` row is not routable — routing must skip

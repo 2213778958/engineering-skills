@@ -2,7 +2,7 @@
 """Tests: the routing table parses, fails closed, and answers route/skip.
 
 The real repository table must parse into exactly the registered series
-and answer routing decisions from it (ADR 0006: the table is data; this
+and answer routing decisions from it (ADR 0007: the table is data; this
 module is its consumer). The fabricated-tree direction proves the failing
 cases are non-vacuous, off-repo: malformed rows, duplicate names, and
 unknown skills must fail closed instead of routing by guess.
@@ -23,9 +23,9 @@ ROOT = Path(__file__).resolve().parents[2]
 TABLE = ROOT / "engineering-routing" / "references" / "routing-table.md"
 
 ENABLED = (
-    "datasheet-headers",
     "engineering-init",
     "engineering-process",
+    "engineering-research",
     "openhands-sessions",
 )
 REGISTERED = ("engineering-routing", "openhands-watch", "skill-maker")
@@ -71,9 +71,9 @@ class RepoRoutingTableTests(unittest.TestCase):
         self.assertEqual(
             tuple(row.skill for row in self.rows),
             (
-                "datasheet-headers",
                 "engineering-init",
                 "engineering-process",
+                "engineering-research",
                 "engineering-routing",
                 "openhands-sessions",
                 "openhands-watch",
@@ -96,9 +96,9 @@ class RepoRoutingTableTests(unittest.TestCase):
 
     def test_enabled_rows_carry_group_and_uses(self) -> None:
         by_name = {row.skill: row for row in self.rows}
-        self.assertEqual(by_name["datasheet-headers"].group, "hardware")
         self.assertEqual(by_name["engineering-init"].group, "process")
         self.assertEqual(by_name["engineering-process"].group, "process")
+        self.assertEqual(by_name["engineering-research"].group, "research")
         self.assertEqual(by_name["openhands-sessions"].group, "process")
         for name in ENABLED:
             self.assertEqual(by_name[name].uses, "engineering-routing", name)
