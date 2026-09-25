@@ -95,14 +95,18 @@ A disposition with `Action: arbitration`, the same finding disputed after focuse
 
 Current ticket body has no `engineering:pr` → stop; no PR.
 
-Do not edit product code in this window. Staff implement + review + verify (**delegate**) (roles `acceptance implement` / `acceptance review` / `acceptance verify`). Wait until those receipts are in this conversation. Receipts missing → do not open/merge a PR, do not finish. implement merges `engineering:heads` and worktrees per worktree.md. `accept:` is `none` or empty → verify receipt `Verify: none`, issue comment "full suite unset", **still may open a PR**. Command present → acceptance verify runs `accept:`. Acceptance verify has no `Challenge`; do not enter 3b from this hop. Do not spawn a child conversation.
+Do not edit product code in this window. Staff implement + review + verify (**delegate**) (roles `acceptance implement` / `acceptance review` / `acceptance verify`). Wait until those receipts are in this conversation. Receipts missing → do not open/merge a PR, do not finish. implement merges `engineering:heads` and worktrees per worktree.md. **Scope** = implement tickets reached from this acceptance by `blocked-by`, recursively through gates, stopping at closed acceptance tickets (gates, sources and acceptances themselves are not in scope). After merging heads, implement runs `git fetch` then `engineering-process` `scripts/check_acceptance.py pre --head <merge head> --tickets <scope>` in the tree and pastes the output and exit code in its receipt. Review checks the scope list against the `blocked-by` graph. `accept:` is `none` or empty → verify receipt `Verify: none`, issue comment "full suite unset", **still may open a PR**. Command present → acceptance verify runs `accept:`. Acceptance verify has no `Challenge`; do not enter 3b from this hop. Do not spawn a child conversation.
 
 `accept:` failed → staff acceptance implement for leave-one-out isolation per templates.md (this ticket heads ≤4; if the accused is `merge/<child-acceptance>`, recurse that child). Then `issue: none`. Do not edit product code on this ticket. Notify (`hop: blocked`). Stop.
 
-User said it already merged → confirm the default branch contains the commits → close this acceptance.
+`check_acceptance.py pre` non-zero → do not open a PR. `issue: none`. Notify (`hop: blocked`, `suggested next: decide`: planning patch fixes heads or tickets). Stop.
 
-Else passed → **acceptance manage** opens a PR from `engineering:heads` (one head: that branch after implement merged if needed; several: implement created `merge/<this-acceptance>` and merged the list). `Fixes #<n>` n=this acceptance. List empty → stop, fill heads. PR already open and not merged → do not open another; notify (`hop: wait-merge`); stop. `merge: auto` → manage merges the PR then close the acceptance. `merge: human` → open, keep this ticket open, notify (`hop: wait-merge`); stop.
+The user reports the PR already merged → go to **Post-merge** below.
+
+Else passed → **acceptance manage** opens a PR from `engineering:heads` (one head: that branch after implement merged if needed; several: implement created `merge/<this-acceptance>` and merged the list). `Fixes #<n>` n=this acceptance. List empty → stop, fill heads. PR already open and not merged → do not open another; notify (`hop: wait-merge`); stop. `merge: auto` → manage merges the PR with a merge commit (no squash, no rebase), then **Post-merge**. `merge: human` → open, tell the person to merge with a merge commit (no squash, no rebase), keep this ticket open, notify (`hop: wait-merge`); stop.
+
+**Post-merge:** staff acceptance implement: `git fetch`, then `engineering-process` `scripts/check_acceptance.py post --tickets <scope>`; paste the output and exit code. Exit 0 → close the acceptance. Non-zero → keep it open; `issue: none`; notify (`hop: blocked`, `suggested next: decide`); stop.
 
 If this acceptance is a bugfix: after close, list downstream with `paused-by` this acceptance; notify (`suggested next: decide` resume). Do not hand off those downstream tickets.
 
-After closing acceptance: tree `issue: none`. Staff acceptance implement to remove merged implement trees and the acceptance tree per worktree.md. Notify (`hop: done`). Stop.
+After closing acceptance: tree `issue: none`. Staff acceptance implement (may be the Post-merge task) to remove merged implement trees and the acceptance tree per worktree.md. Notify (`hop: done`). Stop.

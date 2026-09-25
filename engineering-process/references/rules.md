@@ -32,11 +32,11 @@ Duties: templates.md **duty table**.
 | Hand off a ticket | planning **manage** only | other departments; implement/review/verify |
 | Decide technical work (patch: body, `blocked-by`, fix tickets, pause/resume, fill tests, apply verdict) | `planning` **implement** (`engineering-init` **patch**). From arbitration → apply the written verdict only | planning manage; other departments; do not judge the verdict |
 | Write the arbitration verdict comment | `arbitration` **manage** (after employee receipts) | planning, delivery, human; implement writes the opinion only |
-| Open / merge PR | `acceptance` **manage**, and current ticket body has `engineering:pr` | implement tickets, gates, planning; acceptance implement does git merge only |
+| Open / merge PR | `acceptance` **manage**, current ticket body has `engineering:pr`, and acceptance implement's `check_acceptance.py pre` exited 0; merge with a merge commit (no squash, no rebase) | implement tickets, gates, planning; acceptance implement does git merge only |
 | Close implement ticket | `delivery` **manage** after push | planning, implement/review/verify, gate/acceptance tickets |
 | Close gate / sink | `human` **manage**: person said the phenomenon passed | do not reopen it as implement work |
 | Talk to the user | planning **manage** (session-start confirm: PROCESS modes + MODELS; advance / mode / `until` / `merge`); human **manage** (how to test and accept, and help) | delivery, acceptance, arbitration; employees |
-| Close acceptance | `acceptance` **manage** merged or the user said it merged | delivery, human, planning |
+| Close acceptance | `acceptance` **manage**, after the PR merged and acceptance implement's `check_acceptance.py post` exited 0 | delivery, human, planning |
 | `git commit` (product) | `delivery` implement only | review, verify, manage, planning implement, arbitration implement |
 | `git push` | `delivery` **manage** only, and only after delivery verify passed (code repo); research synthesis subagent for the external `research/` repo only | other employees; planning; do not push the code repo's default branch |
 | Pause downstream / register bugfix tickets / resume and notify pull | `planning` **implement** during decide. Pause hangs on the **last acceptance** of the bugfix chain | planning manage; the delivery department that found the bug |
