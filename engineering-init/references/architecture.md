@@ -8,19 +8,19 @@ Write into the matching spec markers; replace the whole block if a marker alread
 
 | Marker | Title (write these strings) |
 |---|---|
-| `engineering:contains` | Contains（嵌套） |
-| `engineering:uses` | Uses（编译依赖） |
-| `engineering:graph` | Graph（流程） |
-| `engineering:contains-asis` | Contains（现有嵌套） |
-| `engineering:uses-asis` | Uses（现有依赖） |
-| `engineering:graph-asis` | Graph（现有依赖序） |
+| `engineering:contains` | Contains (nesting) |
+| `engineering:uses` | Uses (build dependency) |
+| `engineering:graph` | Graph (flow) |
+| `engineering:contains-asis` | Contains (as-is nesting) |
+| `engineering:uses-asis` | Uses (as-is dependency) |
+| `engineering:graph-asis` | Graph (as-is dependency order) |
 
 Block shape (outer four-backtick fence is this doc only; write three-backtick mermaid into spec):
 
 ````
 <!-- engineering:contains -->
 
-### Contains（嵌套）
+### Contains (nesting)
 
 ```mermaid
 flowchart TD
@@ -40,7 +40,7 @@ Seeing `github-engineering:*` → replace with the matching new marker.
 
 Edge: `parent contains child`. At most one parent per node. Paths, public headers, ticket allowlists come from the **working** contains. Layered → top-level nodes = layers; no layers → invent no layer nodes. Directory rules: [conventions.md](conventions.md).
 
-Marker: `<!-- engineering:contains -->` … `<!-- /engineering:contains -->`. Write with title Contains（嵌套）.
+Marker: `<!-- engineering:contains -->` … `<!-- /engineering:contains -->`. Write with title Contains (nesting).
 
 As-is: `<!-- engineering:contains-asis -->` … `<!-- /engineering:contains-asis -->`
 
@@ -50,7 +50,7 @@ Layered node examples (names may change): simple-layers `bsp --> uart1`; high-ab
 
 Edge: `A uses B` = A may `#include` / link B. Arrow points at the depended-on side. Legal edges: [conventions.md](conventions.md) "Cross-layer / same-layer exposure". This graph only draws edges that exist in this revision. A component may be a depended-on node; do not rename its symbols.
 
-Marker: `<!-- engineering:uses -->` … `<!-- /engineering:uses -->`. Write with title Uses（编译依赖）.
+Marker: `<!-- engineering:uses -->` … `<!-- /engineering:uses -->`. Write with title Uses (build dependency).
 
 As-is: `<!-- engineering:uses-asis -->` … `<!-- /engineering:uses-asis -->`
 
@@ -60,7 +60,7 @@ Working uses has a cycle → do not open tickets. Change the module list or cont
 
 ## Tickets
 
-- One implement ticket = one node on **working** contains (and its private headers). allowlist = that node's path (inside the landing repo; after normalize, relative to the mirror). `docs/research/` is never in an allowlist; the research synthesis subagent commits it
+- One implement ticket = one node on **working** contains (and its private headers). allowlist = that node's path (inside the landing repo; after normalize, relative to the mirror)
 - Two implement tickets in parallel → no working-uses edge, and contains paths do not overlap
 - Datasheet headers land on that module node; research the chip interface and write the headers inside that implement ticket's delivery; do not open a separate extract ticket
 - As-is graphs do not open tickets

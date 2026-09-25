@@ -4,7 +4,7 @@ Change the ticket contract after init. Do not redo plan.
 
 ## Rules
 
-- Landing repo only. No clone. No implement. No 分发. No PR. Do not write process into `AGENTS.md`. Do not rewrite `AGENTS.md` / `CONTEXT.md` / `docs/adr/` / formatters unless the user explicitly changes conventions, glossary, or a decision.
+- Landing repo only. No clone. No implement. No hand off. No PR. Do not write process into `AGENTS.md`. Do not rewrite `AGENTS.md` / `CONTEXT.md` / `docs/adr/` / formatters unless the user explicitly changes conventions, glossary, or a decision.
 - `PROCESS.md` `contract:` must be `ready`. Else stop, go to **plan**.
 - Do not ask `mode`. Do not change `mode`. Do not change `contract:`. Do not refill `MODELS.md` unless the user explicitly changes a model row.
 - Do not re-grill the layer template unless the user explicitly changes layers.
@@ -15,9 +15,10 @@ Change the ticket contract after init. Do not redo plan.
 
 ## When
 
-- process `planning` **implement** during **决策**: land an unapplied arbitration verdict; or new need / edit body / edit `blocked-by` / open a fix ticket. Planning **manage** must not run these steps.
+- process `planning` **implement** during **decide**: land an unapplied arbitration verdict; or new need / edit body / edit `blocked-by` / open a fix ticket. Planning **manage** must not run these steps.
 - Fill `verify:` / `accept:` commands
 - Resume a paused ticket
+- Record the person's squash / rebase confirmation on an acceptance
 - Same-ticket department continuation after arbitration sends the ticket back, or unpause resume: resume the original **department manage** session per **Department resume** below. Never a new dispatch / new window, and never the implement employee / subagent.
 
 ## Do not
@@ -36,11 +37,12 @@ Changing contains layer cuts, breaking a uses cycle, migrate, opening a ticket n
 8. Any contract or upstream-code change: comment still-open downstream tickets "pull again `<ref>`". Ticket still blocked (open `blocked-by`) → not pulled; fixing this bug does not bypass another blocker.
 9. Test commands updated → write `verify:` / `accept:`. Do not clear a legal `mode`.
 10. Opened, reopened, closed, or `blocked-by` / `blocking` changed → update GitHub-native relationships only: official `blocked-by` edges, and an open parent sub-issue blocks its children. Do not change contains / uses.
-11. Report: which tickets changed; new bug ticket URL if any; whether `verify` / `accept` updated; new issue numbers and their GitHub-native edges.
+11. Squash / rebase confirm: the person confirmed on the planning window that every patch in the acceptance's `git cherry -v` evidence is upstream → comment on that acceptance `Squash confirmed by the person` with the evidence link. Keep it open; do not close it.
+12. Report: which tickets changed; new bug ticket URL if any; whether `verify` / `accept` updated; new issue numbers and their GitHub-native edges.
 
 ## Department resume (same-ticket continuation)
 
-Same-ticket department continuation: after arbitration sends the ticket back, or on unpause resume, planning resumes the **original department manage session** — sessions `spawn.py --mode resume --target-id <child id recorded at 分发> --ticket <n> --request-id <stable request id>`. Never `--mode dispatch` / `--mode open` a new window for that ticket + department. The resume target is the department **manage** window (the dispatch child carrying that department tag), never the implement employee / subagent conversation. Report unknown evidence upward (see below).
+Same-ticket department continuation: after arbitration sends the ticket back, or on unpause resume, planning resumes the **original department manage session** — sessions `spawn.py --mode resume --target-id <child id recorded at handoff> --ticket <n> --request-id <stable request id>`. Never `--mode dispatch` / `--mode open` a new window for that ticket + department. The resume target is the department **manage** window (the dispatch child carrying that department tag), never the implement employee / subagent conversation. Report unknown evidence upward (see below).
 
 Old child ID is not delivery acceptance. Do not treat an old conversation / child id found elsewhere as evidence the department finished the work. Evidence classes:
 
@@ -52,7 +54,7 @@ Notify stays child → parent: the resumed department manage session still notif
 
 ## Walkthroughs
 
-1. **Arbitration continuation.** Arbitration sends the ticket back to the same department: patch step 5 applies only the verdict (send-back → label `ready-for-agent`, per step 4). Planning then resumes the original department manage session with `spawn.py --mode resume --target-id <child id recorded at 分发> --ticket <n> --request-id <same stable request id>`. No new dispatch / new window for that ticket + department; never the implement employee / subagent. Documented in **Department resume** above and steps 4–5.
+1. **Arbitration continuation.** Arbitration sends the ticket back to the same department: patch step 5 applies only the verdict (send-back → label `ready-for-agent`, per step 4). Planning then resumes the original department manage session with `spawn.py --mode resume --target-id <child id recorded at handoff> --ticket <n> --request-id <same stable request id>`. No new dispatch / new window for that ticket + department; never the implement employee / subagent. Documented in **Department resume** above and steps 4–5.
 2. **Unknown receipt.** The resume receipt state is unknown (timeout / lost response): do not blind retry and do not re-run the work automatically. Verify actual state — ticket comments, receipts, commits — then follow the disposition / send-back flow and report the unknown upward. Documented in **Department resume** (`unknown` evidence class).
 3. **Final acceptance unpause.** Bugfix acceptance closes: drop `paused-by` and that blocker from the downstream ticket, comment **pull again** `<ref>`, restore `ready-for-agent` as needed — then resume the original department manage session per **Department resume**, never the employee / subagent. Documented in step 7 + **Department resume**.
 4. **Remaining blocker.** This bug's pause removed must not bypass another blocker: the ticket still `blocked-by` an open ticket stays un-pulled; other blockers and other `paused-by` causes are not removed. Step 8 pull-again comments go only to tickets whose blockers are all resolved. Documented in steps 7–8.

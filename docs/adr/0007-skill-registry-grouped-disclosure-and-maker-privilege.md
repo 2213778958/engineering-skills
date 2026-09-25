@@ -5,7 +5,7 @@ Status: Accepted (person decision, recorded in planning conversation 2f26c192)
 
 ## Context
 
-Spec #1 fixes the layering: product skills only `read and run engineering-routing`; craft lives only in the routing table; process / init / skill-maker / research never touch the sessions adapter ("不对接 Matt"). Three pressures now converge: (a) more interface-layer skills are coming (pcb, ppt, …) and each must onboard without editing engine code; (b) the routing table currently lives inside `engineering-routing/SKILL.md`, coupling the registry to engine code; (c) skill-maker's authority is undefined — today it is a generic authoring skill, while the engineering family needs a controlled writer.
+Spec #1 fixes the layering: product skills only `read and run engineering-routing`; craft lives only in the routing table; process / init / skill-maker / research never touch the sessions adapter (spec #1 wording `不对接 Matt`: "do not wire to Matt"). Three pressures now converge: (a) more interface-layer skills are coming (pcb, ppt, …) and each must onboard without editing engine code; (b) the routing table currently lives inside `engineering-routing/SKILL.md`, coupling the registry to engine code; (c) skill-maker's authority is undefined — today it is a generic authoring skill, while the engineering family needs a controlled writer.
 
 ## Decisions
 
@@ -16,8 +16,8 @@ Spec #1 fixes the layering: product skills only `read and run engineering-routin
 
 ## Consequences
 
-- #16 (实现 routing 技能表) implements the data table, groups, and the two states per this ADR; it is blocked by the registry-contract ticket.
-- #17 (skill-maker 改走 routing) wires skill-maker in under the three-way privilege split; blocked by the registry-contract ticket.
-- #14 (init 改走 routing) and #19 (合并 routing 调用方) keep their scope; the registry contract defines their calling convention.
+- #16 (implement the routing skill table) implements the data table, groups, and the two states per this ADR; it is blocked by the registry-contract ticket.
+- #17 (skill-maker goes through routing) wires skill-maker in under the three-way privilege split; blocked by the registry-contract ticket.
+- #14 (init goes through routing) and #19 (merge the routing callers) keep their scope; the registry contract defines their calling convention.
 - Future registrations are routine patch tickets; the engine never forks per skill.
 - Spec #1 body is rewritten only when this line executes (first patch), not now.

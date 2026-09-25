@@ -36,6 +36,7 @@ Path = contains node. Repo already has a layout or the user named one → follow
 - Repo already uses a single `<module>_hw.h` → follow the repo
 - `#pragma once`; `#include <stdint.h>`; prefix `MODULE_REG_*` / `MODULE_CFG_*`
 - Constant comments: datasheet + page/section. No source → delete or research again
+- Only symbols this module ticket needs; do not invent registers or typical values
 - Location: that module's contains directory. Repo already puts headers in `Inc/` → follow the repo
 
 ## Cross-layer / same-layer exposure (before drawing uses)
@@ -124,8 +125,8 @@ Arbitration runs `verify:` only to check whether reproduction holds. Failure is 
 
 ## Agent
 
-- allowlist = that contains node's path. `docs/research/` is outside every allowlist; only the research synthesis subagent commits it
-- On own branch only `git add` (allowlist) + `git commit`; no `checkout`/`merge`/`push`. `git push` only the delivery **manage**, and only after delivery verify passed; do not push the default branch. Heads merge / worktree git: `acceptance` implement.
+- allowlist = that contains node's path
+- On own branch only `git add` (allowlist) + `git commit`; no `checkout`/`merge`/`push`. `git push` (code repo): `delivery` **manage** after delivery verify passed; `acceptance` **manage** pushes `merge/<this-acceptance>` only (heads ≥2, before opening the PR; force allowed on that branch only). Never the code repo's default branch. Only other push: the research synthesis subagent pushes the external `research/` repo. Heads merge / worktree git: `acceptance` implement.
 - Open a PR only on an acceptance ticket (body `engineering:pr`)
 - git worktrees: `engineering-process` creates/removes under the Canvas container `worktree/` (see canvas.md). Do not put a tree path in Canvas `working_dir`
 - Implement must not open datasheet PDFs
@@ -133,4 +134,4 @@ Arbitration runs `verify:` only to check whether reproduction holds. Failure is 
 - AI advance: `engineering-process`. Latch only in `docs/agents/PROCESS.md` (local, not in git): ask `mode` once; `contract: ready` means initialized; later starts follow the file; change `mode` only when the user explicitly asks. Model presets in `docs/agents/MODELS.md` (tracked).
 - Do not write process / planning / department / entry rules into `AGENTS.md`. Coding conventions in root `AGENTS.md`; glossary `CONTEXT.md`; hard-to-reverse decisions `docs/adr/`. Existing convention files → follow the repo; do not overwrite.
 - `docs/agents/HANDOFF.md` **default do not create**. Write only when the same ticket must cross conversations (crash, **department** 300 turns and ticket still open, hardware on-site). Fold into the close-ticket comment at merge; do not pile onto the default branch
-- Department handoff by turn count: OpenHands this `run()` one `agent.step` = one turn; at **300** with ticket still open write HANDOFF; next planning 推进 分发 the same department. `max_iterations` is a cap, not the current turn. ACP: visible assistant turns, also 300. Employee Tasks do not use this cap.
+- Department handoff by turn count: OpenHands this `run()` one `agent.step` = one turn; at **300** with ticket still open write HANDOFF; the next planning advance hands off to the same department. `max_iterations` is a cap, not the current turn. ACP: visible assistant turns, also 300. Employee Tasks do not use this cap.

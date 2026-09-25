@@ -18,9 +18,20 @@ description: >-
 | **migrate** | Attach an existing project to the contract | Origin repo not written; planning on the landing-repo GitHub; default as-is only; normalize only then to-be, ticket net, convention files, plus `mode` / `contract: ready` / `MODELS.md` reported; landing is container `master/` |
 | **patch** | After init, change ticket contract / add test commands | Tickets and spec aligned to existing contains; `mode` / `contract` unchanged |
 
+## Terms
+
+| 中文 | English |
+|---|---|
+| 分发 | hand off |
+| 决策 | decide |
+| 推进 | advance |
+| 职责表 | duty table |
+| 回传 | report back |
+| 开会话 | open a session |
+
 ## Rules
 
-- Do not implement, do not call Task, do not `git clone`, do not 分发 departments, do not staff employees, do not open PRs. Injecting `AGENTS.md` / `CONTEXT.md` / ADRs / formatters is not implementation. Plan close-out may run sessions **list** to fill `MODELS.md`; do not POST a conversation.
+- Do not implement, do not call Task, do not `git clone`, do not hand off to departments, do not staff employees, do not open PRs. Injecting `AGENTS.md` / `CONTEXT.md` / ADRs / formatters is not implementation. Plan close-out may run sessions **list** to fill `MODELS.md`; do not POST a conversation.
 - `gh` / `git commit` only on the **landing repo**, never the origin repo.
 - Do not write process / planning / department / current ticket into `AGENTS.md`. Coding conventions, glossary, ADRs: [repo-docs.md](references/repo-docs.md). Existing files → follow the repo; do not overwrite.
 - Unconfirmed decisions → read and run `engineering-routing` for the decision. Unconfirmed → no issues, no graphs, no code.
@@ -40,7 +51,7 @@ description: >-
 - Model presets: [references/models-stub.md](references/models-stub.md)
 - Canvas hang: [references/canvas.md](references/canvas.md). One imported folder with `master/` (landing) and `worktree/` (ticket trees). Do not ask how to open. Init does not POST, does not move the repo. Latch files go in the checkout, not `<imported>/docs/agents/`.
 - Ask `mode` once; write `docs/agents/PROCESS.md`. Legal `mode` already set → do not ask, do not overwrite. Later runs follow the file; change only when the user explicitly asks.
-- Write the model table to `docs/agents/MODELS.md` per models-stub n×m grid. Planning manage cell is `stay` = this conversation's model (ACP bridge allowed). Other department manage cells `dispatch`. Employee cells `delegate`. Do not rewrite delegate to dispatch. At plan close-out, print the table; change a cell only if the user asks. Duties: process templates.md **职责表**.
+- Write the model table to `docs/agents/MODELS.md` per models-stub n×m grid. Planning manage cell is `stay` = this conversation's model (ACP bridge allowed). Other department manage cells `dispatch`. Employee cells `delegate`. Do not rewrite delegate to dispatch. At plan close-out, print the table; change a cell only if the user asks. Duties: process templates.md **duty table**.
 - If missing, inject `AGENTS.md` / `CONTEXT.md` / `docs/adr/` / formatters using the [repo-docs.md](references/repo-docs.md) skeleton. Do not invent heading order. Existing files follow the repo. Do not put process in `AGENTS.md`.
 - After init, change the contract via [references/patch.md](references/patch.md)
 - `contract: ready` is written by **plan** / **normalize migrate**. Process seeing `ready` plus a new need → **patch**, not a full plan.
@@ -57,7 +68,7 @@ This repo must already have a GitHub remote.
 5. **uses DAG.** Draw only after exposure rules are confirmed. Cycle → stop, return to 3–4, do not open tickets.
 6. **to-spec.** User Stories only in spec prose. Write contains / uses mermaid under the markers. Each block has a graph title (architecture.md).
 7. **labels.** If missing, create the seven labels in [references/contract.md](references/contract.md) with `gh label create --force`.
-8. **to-tickets.** Edges only official `blocked-by`. One implement ticket per contains node. Parallel only when uses has no edge and paths do not overlap. Do not open a separate datasheet ticket. Implement tickets: `ready-for-agent` (body must not contain `engineering:pr`). Hard-to-see gates: extra `ready-for-human`, `blocked-by` that implement ticket. Acceptance/PR tickets exist from the start: `ready-for-agent`, body `engineering:pr` + `engineering:heads` (direct children ≤4, default 4); no visual gate → acceptance `blocked-by` the implement ticket; with a gate → `blocked-by` the gate. More than 4 to merge → split a mid acceptance; parent heads write `merge/<child-acceptance>`. Do not put a human on every acceptance; a single-line phenomenon hangs on the gate after implement; merge phenomenon hangs only on the final sink (open only if someone must look). Source ticket body `engineering:source`; parallel leaves default `blocked-by` the same source (multi-source: user names them); plan close-out default **close the source ticket**; if the user must confirm start, leave source `ready-for-human` and do not close. Default 1 source 1 sink. No `triage`, no implement, no PR, **do not 分发** `ready-for-human` here (gate tickets are created; this step does not staff departments).
+8. **to-tickets.** Edges only official `blocked-by`. One implement ticket per contains node. Parallel only when uses has no edge and paths do not overlap. Do not open a separate datasheet ticket. Implement tickets: `ready-for-agent` (body must not contain `engineering:pr`). Hard-to-see gates: extra `ready-for-human`, `blocked-by` that implement ticket. Acceptance/PR tickets exist from the start: `ready-for-agent`, body `engineering:pr` + `engineering:heads` (direct children ≤4, default 4); no visual gate → acceptance `blocked-by` the implement ticket; with a gate → `blocked-by` the gate. More than 4 to merge → split a mid acceptance; parent heads write `merge/<child-acceptance>`. Do not put a human on every acceptance; a single-line phenomenon hangs on the gate after implement; merge phenomenon hangs only on the final sink (open only if someone must look). Source ticket body `engineering:source`; parallel leaves default `blocked-by` the same source (multi-source: user names them); plan close-out default **close the source ticket**; if the user must confirm start, leave source `ready-for-human` and do not close. Default 1 source 1 sink. No `triage`, no implement, no PR, **do not hand off** `ready-for-human` here (gate tickets are created; this step does not staff departments).
 10. **PROCESS.md.** Write `docs/agents/PROCESS.md` per [process-stub.md](references/process-stub.md). Existing `manual`/`auto` → do not ask. Else ask once semi-auto or full-auto; write `mode:`. Write `contract: ready`. `verify:` / `accept:` from step 1. Leave `template:` empty. `merge: human`. `until: none`. Do not put these fields in `AGENTS.md`. **Do not git add this file.**
 11. **Repo conventions.** Inject per [repo-docs.md](references/repo-docs.md) **sequence** (no commit in this step). Do not change skeleton heading order. Do not overwrite existing files. No terms → no empty `CONTEXT.md`. No qualifying decision → no empty `docs/adr/`.
 12. **MODELS.md.** Fill `docs/agents/MODELS.md` per [models-stub.md](references/models-stub.md) n×m grid. Route the call through the registry: [scripts/routing_registry.py](scripts/routing_registry.py) checks `../engineering-routing/references/routing-table.md` (a `registered` row is not routable), then run `engineering-sessions` **list**. Print the table; ask if the user wants changes.

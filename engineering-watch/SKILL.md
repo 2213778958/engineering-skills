@@ -23,7 +23,7 @@ This skill owns the engineering meaning of a dispatch: report arrival correlated
 ## Rules
 
 1. Read-only. Never POST / PATCH / DELETE / run. Never resume, reply to, or mutate a child conversation or the dispatch ledger.
-2. Explicit inspection only, run on demand by planning after a dispatch. Never an automatic loop, never unattended, never on a timer. After 分发, planning still stops; this tool runs only when the user asks 巡查.
+2. Explicit inspection only, run on demand by planning after a dispatch. Never an automatic loop, never unattended, never on a timer. After handoff, planning still stops; this tool runs only when the user asks to inspect dispatched children (e.g. "巡查", "check on them").
 3. Never print the API key. Header `X-Session-API-Key` from `~/.openhands/agent-canvas/api-key.txt`.
 4. Latch is not overridden: a `hung` or gap verdict never resumes the child and never dispatches again. Report and wait for the user.
 5. `terminal` alone never counts as `notified`. `notified` requires the correlated `engineering:report` in the parent conversation's events; an unrelated conversation's report does not count.
@@ -39,7 +39,7 @@ This skill owns the engineering meaning of a dispatch: report arrival correlated
 | **hung** | openhands-watch stall semantics | `stuck` / `waiting_for_confirmation` / `paused` / `deleting` / stall / not-found while not terminal. A healthy child waiting on in-flight delegated work is alive, not hung, without further evidence |
 | **terminal + notified** | child terminal and report arrived | correlated `engineering:report` found in the parent events: `request:` line equals `dispatch:{parent_id}:{department}:{ticket}:{request_id}` parts |
 | **terminal + missing-notify** | child terminal, no correlated report | terminal verdict from the probe, correlated report absent in the parent events |
-| **terminal + finalization-failed** | child finished but 收尾 failed | child `final_response` marks push / graph / PROCESS / notify failure (e.g. `notify fail`, `finalization failed`, `收尾失败`); correlated report absent → not success |
+| **terminal + finalization-failed** | child finished but finalization failed | child `final_response` marks push / graph / PROCESS / notify failure (e.g. `notify fail`, `finalization failed`, `收尾失败`); correlated report absent → not success |
 
 `missing-notify` and `finalization-failed` are recoverable-gap states: surface them to planning as gaps. Do not silently treat them as success; do not auto-recover.
 
@@ -69,4 +69,4 @@ Print the JSON. Follow the process exit:
 | 3 | terminal reached but any gap (`missing-notify` / `finalization-failed`) |
 | 1 | usage / API failure |
 
-Act on gaps per `engineering-process` 回传 rules only, with the user; this skill itself stops at the report.
+Act on gaps per `engineering-process` report back rules only, with the user; this skill itself stops at the report.

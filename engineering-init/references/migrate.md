@@ -4,11 +4,11 @@ Attach an existing project to the contract. Conventions, contains, uses, ticket 
 
 ## Rules
 
-- No implement, no clone, no 分发, no Task, no PR.
+- No implement, no clone, no hand off, no Task, no PR.
 - Origin repo: no `git commit`, no `gh`, no labels. Writes only on the landing-repo GitHub.
 - Do not write process into `AGENTS.md`. Normalize landing repo: inject convention files per [repo-docs.md](repo-docs.md); existing files follow the repo. Not-normalized: do not inject to-be conventions.
 - Do not rename vendor/generated symbols or Components device names to `Layer_Module_Action`
-- No `triage`. Do not 分发 onto `ready-for-human` (normalize still creates gate tickets).
+- No `triage`. Do not hand off onto `ready-for-human` (normalize still creates gate tickets).
 - This skill does not `git clone` or create a GitHub repo.
 
 ## Key points

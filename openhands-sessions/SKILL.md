@@ -19,7 +19,7 @@ All session adapters must satisfy the provider-neutral capability contract in [c
 |---|---|---|
 | `list` | Inspect live profiles and LLM catalog | [list](references/list.md) |
 | `open` | New independent conversation on a named profile/model | [spawn](references/spawn.md) |
-| `dispatch` | Planning department 分发 **another** department, or user 开会话 | [spawn](references/spawn.md) |
+| `dispatch` | Planning department hands off to **another** department, or user opens a session | [spawn](references/spawn.md) |
 | `notify` | Other department manage hop finished; report child-to-parent | [notify](references/notify.md) |
 | `resume` | Continue a validated existing direct department child | [resume](references/resume.md) |
 | `delegate` | Run a synchronous employee Task subagent | [delegate](references/delegate.md) |
@@ -34,7 +34,7 @@ Open only the selected one-level reference plus `identity.md`. Do not recursivel
 If the routing skill has not selected a process action, this skill must not invent one.
 Task-type routing (who should work) is `engineering-routing`, which may dispatch only to rows whose state is `enabled` in `engineering-routing/references/routing-table.md`; a `registered` row is not routable. If the user asked to pick by task type and routing did not already call this skill → read and run `engineering-routing`. If routing already called this skill, or the user named a profile/model → only the named mode.
 
-This copy runs on the **ACP bridge**. A **department** (including planning) may be a **model** on this bridge (e.g. grok). Do not call that window "ACP". **Employees** = **delegate**. Do not rewrite `delegate` to `dispatch`. No Task here → **fail** delegate; do not spawn a child instead. Do not 分发 an employee.
+This copy runs on the **ACP bridge**. A **department** (including planning) may be a **model** on this bridge (e.g. grok). Do not call that window "ACP". **Employees** = **delegate**. Do not rewrite `delegate` to `dispatch`. No Task here → **fail** delegate; do not spawn a child instead. Do not hand off an employee.
 
 ## Rules
 
@@ -57,7 +57,7 @@ This copy runs on the **ACP bridge**. A **department** (including planning) may 
 
 **LLM profile** = `model` + `reasoning_effort` (detail endpoint; list omits effort). Same list `model` can be several efforts. Match **name / effort**, not list `model`. Grok effort is the `acp_model` suffix (`-high` / `-xhigh`).
 
-**open** vs **dispatch:** open may be a greeting and polls only if asked. dispatch always has a task, always sets `parent_conversation_id` to this conversation (unless the user asked for an unrelated conversation). Process 分发: `--poll-sec 0`; planning **stops** (does not watch). User 开会话: poll only if asked.
+**open** vs **dispatch:** open may be a greeting and polls only if asked. dispatch always has a task, always sets `parent_conversation_id` to this conversation (unless the user asked for an unrelated conversation). Process handoff: `--poll-sec 0`; planning **stops** (does not watch). User opens a session: poll only if asked.
 
 Conversation identity, credential, host, transport, and workspace mechanics (GET `id` vs empty `conversation_id`, `CURSOR_CONVERSATION_ID` 404 semantics, spawn.py resolution walk-up, POST `worktree` semantics, sidebar grouping) → [identity](references/identity.md).
 
@@ -111,9 +111,9 @@ User named a subdir / ticket tree → prompt `cd` only. User asked to open in a 
 - `max_iterations` floors (one-shot 80 … large slices 500; user-named cap wins) → [spawn](references/spawn.md). Hitting the cap marks `error` (`MaxIterationsReached`, not retryable) and skips later steps such as `git commit`.
 - Report the JSON `url`, `working_dir`, `tags`, `id`. `clientsource` missing or `id` missing → failure. Empty `conversation_id` is OK.
 
-Prompt is self-contained: goal, paths, constraints, done criteria, report shape. Process 分发: tell the child it is that department **manage**; staff employees per process templates.md **职责表**; wait until each receipt is in that window; then sessions **notify**; stop. Human child: talk to the user — how to test and accept, and help; do not notify until pass or fail. Manage must not do implement/review/verify work. Do not finish after launching Task. Do not claim to be the planning department; do not 分发 another department. User 开会话: tell the child it is the **planning** manage window (talks to the user). Do not tell an employee prompt it is a department. Department windows may read the ticket-tree `PROCESS.md`. Employee prompts must not (`planning` implement may read `PROCESS.md` for patch).
+Prompt is self-contained: goal, paths, constraints, done criteria, report shape. Process handoff: tell the child it is that department **manage**; staff employees per process templates.md **duty table**; wait until each receipt is in that window; then sessions **notify**; stop. Human child: talk to the user — how to test and accept, and help; do not notify until pass or fail. Manage must not do implement/review/verify work. Do not finish after launching Task. Do not claim to be the planning department; do not hand off to another department. User opens a session: tell the child it is the **planning** manage window (talks to the user). Do not tell an employee prompt it is a department. Department windows may read the ticket-tree `PROCESS.md`. Employee prompts must not (`planning` implement may read `PROCESS.md` for patch).
 
-Poll is `--poll-sec` on `spawn.py` only if the user asked to wait. Planning 分发 uses `--poll-sec 0` and does not watch. Employees do not dispatch. Do not GET child `/events/search`.
+Poll is `--poll-sec` on `spawn.py` only if the user asked to wait. Planning handoff uses `--poll-sec 0` and does not watch. Employees do not dispatch. Do not GET child `/events/search`.
 
 ## Steps: notify
 
@@ -133,10 +133,10 @@ department: delivery | acceptance | arbitration | human
 ticket: #<n>
 hop: done | send-back | need-arbitration | need-human | blocked | wait-merge
 receipts: <role=pass|fail|none; …>
-suggested next: 分发 <department> #<n> | 决策 | stop
+suggested next: hand off <department> #<n> | decide | stop
 ```
 
-Then extra lines as needed. This message is **not** 推进. Report the JSON `url` / `parent_id`.
+Then extra lines as needed. This message is **not** an advance request. Report the JSON `url` / `parent_id`.
 
 Trust `launched_agent_profile` and create-time `agent.llm.reasoning_effort`. Ignore the child's self-identified name and the UI picker.
 
