@@ -3,8 +3,8 @@
 
 Allowed in Markdown: frontmatter (trigger words), the ``## Terms`` tables of
 the three entry skills, backticked literals, and double-quoted spans listed in
-``QUOTED`` (user phrases and UI labels). Python allows any string literal
-(runtime markers, fixtures). ``README.md`` and ``CONTEXT.md`` stay bilingual.
+``QUOTED`` (user phrases and UI labels). Python allows double-quoted string
+literals (runtime markers, fixtures). ``README.md`` and ``CONTEXT.md`` stay bilingual.
 """
 
 from __future__ import annotations
@@ -58,7 +58,7 @@ def stray(line: str, markdown: bool) -> bool:
     if markdown:
         line = re.sub(r'"([^"]*)"', lambda m: "" if m.group(1) in QUOTED else m.group(0), line)
     else:
-        line = re.sub(r'"[^"]*"|\'[^\']*\'', "", line)
+        line = re.sub(r'"[^"]*"', "", line)
     return bool(CJK.search(line))
 
 
