@@ -208,6 +208,7 @@ class AcceptanceHopTests(unittest.TestCase):
         self.assertIn("git cherry -v", section)
         templates = (ROOT / "engineering-process" / "references" / "templates.md").read_text(encoding="utf-8")
         self.assertIn("acceptance `post` failed after a squash / rebase merge", templates)
+        self.assertIn("or (squash / rebase) the person's confirmation comment is on the ticket (hops.md 3e)", templates)
         self.assertNotIn("confirm the default branch contains the commits → close this acceptance", section)
 
 
