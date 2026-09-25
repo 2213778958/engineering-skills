@@ -23,8 +23,8 @@
 **openhands-watch**
 看派出去的子会话是还在跑、挂了、还是结束了。规划分发本身不巡查。换 Codex 的时候，连这一层一起换。
 
-**datasheet-headers**
-从芯片数据手册里抽出寄存器头文件。不在当前会话打开 PDF，也不写驱动。
+**engineering-research**
+调研员工：回答一个技术问题或交一份调研文档，先查仓库自己的资料，再上网补缺。数据手册抽寄存器头文件是它的一个功能；不在当前会话打开 PDF，也不写驱动。
 
 **skill-maker**
 写 skill 或改 skill。只写步骤，不写理由。Cursor 和 OpenHands 目录各落一份相同的。
@@ -56,8 +56,8 @@ Talks to Agent Canvas: list profiles, open a conversation, dispatch a child. Rep
 **openhands-watch**
 Checks whether a dispatched child is alive, hung, or done. Planning does not watch after dispatch. Replace this file for Codex.
 
-**datasheet-headers**
-Turns a datasheet PDF into register headers. It does not open the PDF in this session and does not write drivers.
+**engineering-research**
+A research employee: answers one technical question or delivers one research document, repo library first, the web only for gaps. Turning a datasheet PDF into register headers is one of its functions; it does not open the PDF in this session and does not write drivers.
 
 **skill-maker**
 Writes or edits a skill. Commands only, no rationale. Same files under the Cursor skills dir and the OpenHands skills dir.

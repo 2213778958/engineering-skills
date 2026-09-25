@@ -8,7 +8,7 @@ Landing repo `docs/agents/MODELS.md`. Do not write the origin repo. Do not put t
 - Role → task type only from the `engineering-routing` table. Do not invent a third task-type table here.
 - Write the routing **link as the table says**. Planning manage cell is `stay`. Other department manage cells are `dispatch`. Employee cells are `delegate`. Do not rewrite `delegate` to `dispatch`. Do not write `delegate` on a manage cell.
 - Planning is a **department**. Conversation windows. Planning department `stay`. 分发 another department (`delivery` / `acceptance` / `arbitration` / `human`) `dispatch`. Target for stay = **this conversation's model** (ACP is the Cursor bridge, not the role; grok via ACP is allowed). Target for dispatch = a spawnable profile from sessions **list** (same family/effort as this conversation when possible).
-- **Employee** cells: `delegate` + a resolvable target. Those are not conversation windows. Department **manage** cells are the seat. MODELS must not write `dispatch` on implement / review / verify / extract. Duties: process templates.md **职责表**.
+- **Employee** cells: `delegate` + a resolvable target. Those are not conversation windows. Department **manage** cells are the seat. MODELS must not write `dispatch` on implement / review / verify / research. Duties: process templates.md **职责表**.
 - User named a model / profile → follow the user for stay/dispatch windows only. Employee staffing still delegate.
 - `confirmed: no`: written, reported, user has not said to use this table. `yes`: user said use it or leave it.
 - process does not refill the whole table unless the user changes a cell. Existing file has `supervisor` and no `planning` → process treats that as planning manage `stay`. Missing other-department manage cell → process 分发 uses this conversation's spawnable profile.
@@ -33,7 +33,7 @@ Landing repo `docs/agents/MODELS.md`. Do not write the origin repo. Do not put t
 | arbitration implement | employee | Architecture / hard problem / deep debug |
 | arbitration review | employee | Medium-complexity implementation |
 | arbitration verify | employee | General subtask that must run commands |
-| datasheet extract | employee | Extract registers from a PDF / datasheet; keep the body out of this session |
+| research | employee | Answer a technical question or write a research document, datasheet headers included; keep sources and PDF body out of this session |
 
 ## Steps: fill at plan close-out
 
@@ -44,13 +44,13 @@ Landing repo `docs/agents/MODELS.md`. Do not write the origin repo. Do not put t
 
 ## Steps: file contents
 
-`MODELS.md` is one n×m grid: rows = departments, columns = `manage` / `implement` / `review` / `verify`. Same axes as the 职责表. Cell = target. `—` = 职责表 no. Extract is not a department column; keep a 1×1 sidecar.
+`MODELS.md` is one n×m grid: rows = departments, columns = `manage` / `implement` / `review` / `verify`. Same axes as the 职责表. Cell = target. `—` = 职责表 no. Research is not a department column; keep a 1×1 sidecar.
 
 ```
 confirmed: no | yes
 updated: <ISO-8601>
 
-link: planning manage = stay; other manage = dispatch; implement / review / verify / extract = delegate
+link: planning manage = stay; other manage = dispatch; implement / review / verify / research = delegate
 
 | | manage | implement | review | verify |
 |---|---|---|---|---|
@@ -60,9 +60,9 @@ link: planning manage = stay; other manage = dispatch; implement / review / veri
 | arbitration | <spawnable profile> | general-purpose | general-purpose | general-purpose |
 | human | <spawnable profile> | — | — | — |
 
-| | extract |
+| | research |
 |---|---|
-| datasheet | general-purpose |
+| research | general-purpose |
 ```
 
-Role name for routing = manage cell → `<department>`; other cells → `<department> <duty>`; extract → `datasheet extract`.
+Role name for routing = manage cell → `<department>`; other cells → `<department> <duty>`; research sidecar → `research`.

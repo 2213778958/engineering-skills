@@ -20,9 +20,20 @@ One **research** employee: it answers one technical question or delivers one res
 
 This is an **employee** (Task), not a department. Do not write drivers, do not open issues, do not paste PDF body into this conversation. Do not open a child conversation. Any department's **manage** may staff this role; the default home is the **delivery** implement ticket.
 
-Delegate: read and run `engineering-routing` (role `research`). Repo `MODELS.md` target wins if present; ignore a `dispatch` link. Do not read `openhands-sessions`, do not copy POST, do not call Task directly.
+Delegate: read and run `engineering-routing` (role `research`). Before delegating, check `../engineering-routing/references/routing-table.md`: only an `enabled` row is routable; a `registered` row stops at the gate (enablement is a patch ticket). Repo `MODELS.md` target wins if present; ignore a `dispatch` link. Do not read `openhands-sessions`, do not copy POST, do not call Task directly.
 
-Question research missing the question, or datasheet extraction missing `<module>` / PDF path → `grilling` (decision); datasheet extraction also finds `.pdf` files in the repo. Do not ask the user to list registers.
+## Inputs
+
+| Function | Caller gives | Research finds |
+|---|---|---|
+| question research | question; scope; deliverable path; return format | sources: repo library first, web for the gaps |
+| datasheet extraction | `<module>`; output headers / paths; return format; PDF path if known (hint) | the datasheet PDF: repo `.pdf` files first, then the web |
+
+Requirement missing → stop; `Result: fail` + `Missing: <fields>`. Do not guess, do not ask. Do not ask the user to list registers.
+
+Material not found → not an input failure: finish with what was found; list what was not found and where it looked. Exception: datasheet extraction with no PDF found anywhere cannot produce headers → `Result: fail` + where it looked (Function: datasheet extraction, step 1).
+
+## Sources
 
 Source order — the same for every function, repo first:
 
@@ -33,7 +44,7 @@ Source order — the same for every function, repo first:
 
 ## Function: question research
 
-1. Fix the question, the scope, and the deliverable path. Deliverable: one research document (repo library hits first, then web sources, each named; conclusion + what was not found).
+1. Check the question research row of Inputs. Deliverable: one research document at the caller's path, in the caller's return format (repo library hits first, then web sources, each named; conclusion + what was not found).
 2. Read and run `engineering-routing`. Prompt contains only: question, scope, deliverable path, done criteria. Do not paste long source text into the prompt.
 3. Wait until the subagent ends and the receipt is in this conversation. Background Task → **fail**. No `spawn.py`.
 4. Check the document answers the question from named sources; repo-library-first is visible in the source list. Web-only answers with a repo hit available → fail, then run research again.
@@ -41,7 +52,7 @@ Source order — the same for every function, repo first:
 
 ## Function: datasheet extraction
 
-1. Fix `<module>` and absolute PDF paths (may be several). Resolve output paths with [references/headers.md](references/headers.md).
+1. Check the datasheet extraction row of Inputs. Find the datasheet PDFs (may be several): caller's hint first, then repo `.pdf` files, then the web. None found → `Result: fail` + where it looked. Resolve output paths with [references/headers.md](references/headers.md).
 2. Read and run `engineering-routing`. Prompt contains only: goal, PDF paths, output paths, header constraints, done criteria. Do not paste PDF body.
 3. Wait until the subagent ends and the receipt is in this conversation. Background Task → **fail**. No `spawn.py`.
 4. This conversation only reads the generated `.h` files (names, include guards, page comments). Opening the PDF or pasting datasheet paragraphs into a later implement prompt → fail, then run datasheet extraction again.
